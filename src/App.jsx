@@ -26,9 +26,17 @@ const emptyItemForm = {
   Category: '',
 }
 
+function generateClientId() {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `line-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 function createLineItem(itemCode = '') {
   return {
-    id: crypto.randomUUID(),
+    id: generateClientId(),
     itemCode,
     bags: '1',
   }

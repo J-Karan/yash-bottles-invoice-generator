@@ -1,10 +1,13 @@
 @echo off
-setlocal EnableDelayedExpansion
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 if "%PORT%"=="" set "PORT=5000"
 if "%HOST%"=="" set "HOST=0.0.0.0"
 if "%ADMIN_PASSWORD%"=="" set "ADMIN_PASSWORD=admin123"
+
+call :prepare_port
+if errorlevel 1 goto :fail
 
 echo [1/3] Checking dependencies...
 if not exist "node_modules" (
@@ -45,12 +48,90 @@ if not "%LAN_IP%"=="" (
   echo Wi-Fi URL: Unable to auto-detect. Run "ipconfig" and use your IPv4 address.
 )
 echo Keep this window open while testing.
+echo Press Ctrl+C to stop the server.
 echo.
 
 call npm start
-goto :eof
+set "EXITCODE=%ERRORLEVEL%"
+echo.
+if "%EXITCODE%"=="0" (
+  echo Server process ended.
+) else (
+  echo Server failed or stopped unexpectedly with exit code %EXITCODE%.
+  echo Tip: if the error is EADDRINUSE, close the old server or change PORT.
+)
+echo Press any key to close this window.
+pause >nul
+exit /b %EXITCODE%
 
 :fail
 echo.
 echo Failed to start server. Review errors above.
+echo Press any key to close this window.
+pause >nul
+exit /b 1
+
+:prepare_port
+set "APP_RUNNING="
+for /f "delims=" %%I in ('powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri ('http://localhost:' + $env:PORT + '/api/health') -TimeoutSec 2; if($r.ok -eq $true -and $r.storage -eq 'sqlite'){ 'YES' } } catch {}"') do set "APP_RUNNING=%%I"
+
+set "PORT_PIDS= "
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /R /C:":%PORT% .*LISTENING"') do (
+  echo "!PORT_PIDS!" | findstr /C:" %%P " >nul || set "PORT_PIDS=!PORT_PIDS!%%P "
+)
+
+if not "!PORT_PIDS!"==" " (
+  if /I "!APP_RUNNING!"=="YES" (
+    echo Existing invoice server detected on port %PORT%. Restarting...
+  ) else (
+    echo Port %PORT% is in use by PID^(s^): !PORT_PIDS!
+    echo Attempting to free port %PORT%...
+  )
+
+  for %%P in (!PORT_PIDS!) do (
+    taskkill /PID %%P /F >nul 2>&1
+  )
+
+  timeout /t 1 >nul
+)
+
+set "PORT_BUSY="
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /R /C:":%PORT% .*LISTENING"') do (
+  set "PORT_BUSY=%%P"
+  goto :port_busy_found
+)
+:port_busy_found
+
+if defined PORT_BUSY (
+  if /I "!APP_RUNNING!"=="YES" (
+    echo Invoice server is already running on port %PORT%. Reusing existing instance.
+    exit /b 0
+  )
+
+  echo Could not free port %PORT%. It is still used by PID !PORT_BUSY!.
+  echo Trying a fallback port...
+  call :find_free_port
+  if errorlevel 1 (
+    echo Could not find a free fallback port.
+    exit /b 1
+  )
+  echo Using fallback port !PORT!.
+)
+
+exit /b 0
+
+:find_free_port
+set /a "SCAN_PORT=%PORT%+1"
+set /a "MAX_PORT=%PORT%+30"
+
+:find_free_loop
+set "SCAN_BUSY="
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /R /C:":!SCAN_PORT! .*LISTENING"') do set "SCAN_BUSY=1"
+if not defined SCAN_BUSY (
+  set "PORT=!SCAN_PORT!"
+  exit /b 0
+)
+
+set /a "SCAN_PORT+=1"
+if !SCAN_PORT! LEQ !MAX_PORT! goto :find_free_loop
 exit /b 1
