@@ -5,6 +5,12 @@ cd /d "%~dp0"
 if "%PORT%"=="" set "PORT=5000"
 if "%HOST%"=="" set "HOST=0.0.0.0"
 if "%ADMIN_PASSWORD%"=="" set "ADMIN_PASSWORD=admin123"
+if "%KEEP_AWAKE%"=="" set "KEEP_AWAKE=1"
+set "KEEP_AWAKE_PID_FILE=%TEMP%\lan-server-keep-awake.pid"
+set "KEEP_AWAKE_SCRIPT=%TEMP%\lan-server-keep-awake.ps1"
+set "KEEP_AWAKE_HELPER_PID="
+
+call :stop_keep_awake >nul 2>&1
 
 call :prepare_port
 if errorlevel 1 goto :fail
@@ -51,8 +57,20 @@ echo Keep this window open while testing.
 echo Press Ctrl+C to stop the server.
 echo.
 
+if /I not "%KEEP_AWAKE%"=="0" (
+  call :start_keep_awake
+  if defined KEEP_AWAKE_HELPER_PID (
+    echo Sleep prevention enabled while the server is running.
+  ) else (
+    echo Warning: Could not enable sleep prevention helper.
+    echo If Windows enters sleep mode, LAN access will stop.
+  )
+  echo.
+)
+
 call npm start
 set "EXITCODE=%ERRORLEVEL%"
+call :stop_keep_awake
 echo.
 if "%EXITCODE%"=="0" (
   echo Server process ended.
@@ -65,11 +83,55 @@ pause >nul
 exit /b %EXITCODE%
 
 :fail
+call :stop_keep_awake >nul 2>&1
 echo.
 echo Failed to start server. Review errors above.
 echo Press any key to close this window.
 pause >nul
 exit /b 1
+
+:start_keep_awake
+set "KEEP_AWAKE_HELPER_PID="
+if exist "%KEEP_AWAKE_PID_FILE%" del /f /q "%KEEP_AWAKE_PID_FILE%" >nul 2>&1
+
+> "%KEEP_AWAKE_SCRIPT%" echo $pid ^| Set-Content -LiteralPath '%KEEP_AWAKE_PID_FILE%' -Encoding ASCII
+>> "%KEEP_AWAKE_SCRIPT%" echo Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMethods { [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags); }';
+>> "%KEEP_AWAKE_SCRIPT%" echo $flags = 0x80000041
+>> "%KEEP_AWAKE_SCRIPT%" echo try ^{
+>> "%KEEP_AWAKE_SCRIPT%" echo   while ^($true^) ^{
+>> "%KEEP_AWAKE_SCRIPT%" echo     [void][NativeMethods]::SetThreadExecutionState^($flags^)
+>> "%KEEP_AWAKE_SCRIPT%" echo     Start-Sleep -Seconds 30
+>> "%KEEP_AWAKE_SCRIPT%" echo   ^}
+>> "%KEEP_AWAKE_SCRIPT%" echo ^} finally ^{
+>> "%KEEP_AWAKE_SCRIPT%" echo   [void][NativeMethods]::SetThreadExecutionState^(0x80000000^)
+>> "%KEEP_AWAKE_SCRIPT%" echo ^}
+
+start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%KEEP_AWAKE_SCRIPT%" >nul 2>&1
+
+for /l %%N in (1,1,10) do (
+  if exist "%KEEP_AWAKE_PID_FILE%" (
+    set /p "KEEP_AWAKE_HELPER_PID="<"%KEEP_AWAKE_PID_FILE%"
+    goto :start_keep_awake_done
+  )
+  timeout /t 1 >nul
+)
+
+:start_keep_awake_done
+exit /b 0
+
+:stop_keep_awake
+if not defined KEEP_AWAKE_HELPER_PID (
+  if exist "%KEEP_AWAKE_PID_FILE%" set /p "KEEP_AWAKE_HELPER_PID="<"%KEEP_AWAKE_PID_FILE%"
+)
+
+if defined KEEP_AWAKE_HELPER_PID (
+  taskkill /PID !KEEP_AWAKE_HELPER_PID! /T /F >nul 2>&1
+  set "KEEP_AWAKE_HELPER_PID="
+)
+
+if exist "%KEEP_AWAKE_PID_FILE%" del /f /q "%KEEP_AWAKE_PID_FILE%" >nul 2>&1
+if exist "%KEEP_AWAKE_SCRIPT%" del /f /q "%KEEP_AWAKE_SCRIPT%" >nul 2>&1
+exit /b 0
 
 :prepare_port
 set "APP_RUNNING="
