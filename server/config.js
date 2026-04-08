@@ -16,6 +16,7 @@ const buyersPath = path.join(rootDir, 'Buyers_Master.csv')
 const itemsPath = path.join(rootDir, 'Items_Master.csv')
 
 const port = Number(process.env.PORT || 5000)
+const host = process.env.HOST || '0.0.0.0'
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
 const maxLineItems = 8
 
@@ -33,6 +34,7 @@ export {
   buyersPath,
   itemsPath,
   port,
+  host,
   adminPassword,
   maxLineItems,
 }

@@ -60,6 +60,38 @@ Open:
 http://localhost:5000
 ```
 
+## Windows LAN Run (.bat)
+
+Use:
+
+```text
+start-lan-server.bat
+```
+
+This script:
+
+- builds frontend
+- starts Express server on `HOST=0.0.0.0` and `PORT=5000`
+- prints local and Wi-Fi URLs
+
+From another phone/laptop on the same Wi-Fi, open:
+
+```text
+http://<your-pc-ip>:5000
+```
+
+Example:
+
+```text
+http://192.168.1.23:5000
+```
+
+If it does not open on another device:
+
+- ensure both devices are on same Wi-Fi
+- allow Node.js on Windows Firewall (Private network)
+- check your PC IPv4 using `ipconfig`
+
 ## Generated Files (Updated)
 
 Generated output is now split for clarity:
