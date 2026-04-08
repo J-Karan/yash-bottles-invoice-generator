@@ -1,0 +1,22 @@
+Item_Code,Description,HSN_Code,Gross_Rate,Non_Taxable_Rate,Bottles_Per_Bag,Dad_Writes_As,Category
+BE001,650ML TUBORG,7010,4.80,4.60,72,Tuborg|Tuborg 650|Tuborg 650ml,Beer
+BE002,650ML Carlsberg,7010,4.80,4.60,72,Carlsberg|Carlsberg 650|Carlsberg 650ml,Beer
+BE003,330ML Carlsberg,7010,2.90,2.70,120,Carlsberg 330|Carlsberg 330ml,Beer
+BE004,650 ML KF,7010,4.80,4.60,72,KF|KF 650|Kingfisher|Kingfisher 650,Beer
+BE005,330 ML KF,7010,2.80,2.60,120,KF 330|Kingfisher 330,Beer
+BE006,650 ML CADILAC,7010,5.50,5.30,72,Cadilac|Cadilac 650|Cadilac 650ml,Beer
+BE007,330 ML CADILAC,7010,3.75,3.55,120,Cadilac 330|Cadilac 330ml,Beer
+BE008,650 ML KNOCKOUT,7010,5.50,5.30,72,Knockout|Knockout 650,Beer
+BE009,650 ML Kangaru,7010,4.60,4.40,72,Kangaru|Kangaroo|Kangaru 650,Beer
+BE010,650 ML AMSTEL,7010,4.60,4.40,72,Amstel|Amstel 650,Beer
+BE011,650 ML ULTRA,7010,4.60,4.40,72,Ultra|Ultra 650|Kingfisher Ultra,Beer
+BE012,330 ML ULTRA,7010,2.80,2.60,120,Ultra 330,Beer
+BE013,330 ML Tuborg,7010,2.90,2.70,120,Tuborg 330|Tuborg 330ml,Beer
+IT001,Classic Gold 180ml,7010,1.90,1.80,180,Classic Gold|CG|C Gold|Gold 180|Classic Gold 180,Liquor
+IT002,Classic Gold 90ml,7010,1.30,1.20,300,Classic Gold 90|CG 90|C Gold 90|Gold 90,Liquor
+IT003,OCD Monk 180ml,7010,1.66,1.46,216,OCD Monk|OCD|Monk|OLD monk|Monk 180,Liquor
+IT004,Royal Green 180ml,7010,1.90,1.80,180,Royal Green|RG|R Green|Royal 180,Liquor
+IT005,RS 90ml,7010,1.15,1.05,300,RS 90|RS 90ml,Liquor
+IT006,IB 90ml,7010,1.05,0.95,300,IB 90|IB 90ml,Liquor
+IT007,IB 180ml,7010,1.95,1.85,180,IB 180|IB 180ml,Liquor
+IT008,RS 180ml,7010,2.10,2.00,180,RS 180|RS 180ml,Liquor

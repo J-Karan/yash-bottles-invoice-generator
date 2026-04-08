@@ -1,0 +1,11 @@
+node_modules/
+dist/
+generated/
+data/
+debug/
+*.log
+.env
+.env.local
+!.env.example
+.DS_Store
+Thumbs.db
