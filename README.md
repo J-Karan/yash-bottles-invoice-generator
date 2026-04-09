@@ -4,9 +4,9 @@ Invoice generation app for Yash Bottles with a React frontend and Express + SQLi
 
 ## Data Inputs
 
-- `Buyers_Master.csv`
-- `Items_Master.csv`
-- `Invoice Temp.xlsx`
+- `data/masters/Buyers_Master.csv`
+- `data/masters/Items_Master.csv`
+- `data/templates/Invoice Temp.xlsx`
 
 On first run, CSV data seeds SQLite automatically.
 
@@ -119,7 +119,7 @@ Use `.env.example` as a template.
 
 This project is now ready to push to GitHub cleanly:
 
-- Runtime artifacts are ignored (`generated/`, `data/`, `dist/`, logs, debug files)
+- Runtime artifacts are ignored (`generated/`, SQLite files under `data/`, `dist/`, logs, debug files)
 - Environment config template added (`.env.example`)
 - Build/start scripts are already in `package.json`
 

@@ -1,9 +1,16 @@
 node_modules/
 dist/
 generated/
-data/
+data/**
+!data/
+!data/masters/
+!data/masters/Buyers_Master.csv
+!data/masters/Items_Master.csv
+!data/templates/
+!data/templates/Invoice Temp.xlsx
 debug/
 *.log
+snapshots/*.zip
 .env
 .env.local
 !.env.example
