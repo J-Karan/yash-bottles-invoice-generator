@@ -30,6 +30,8 @@ const itemsPath = resolvePath([
 const port = Number(process.env.PORT || 5000)
 const host = process.env.HOST || '0.0.0.0'
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+const paymentPassword = process.env.PAYMENT_PASSWORD || 'Ashlesha21@NYRP'
+const invoiceServiceFee = Number(process.env.INVOICE_SERVICE_FEE || 100)
 const maxLineItems = 8
 
 function resolvePath(candidates) {
@@ -59,5 +61,7 @@ export {
   port,
   host,
   adminPassword,
+  paymentPassword,
+  invoiceServiceFee,
   maxLineItems,
 }

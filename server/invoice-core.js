@@ -9,13 +9,25 @@ import {
   dbPath,
   generatedExcelDir,
   generatedPdfDir,
+  invoiceServiceFee,
   itemsPath,
   maxLineItems,
+  paymentPassword,
   templatePath,
 } from './config.js'
 
 let db
 const dbReady = initializeDatabase()
+const baselinePaidAt = '2026-03-28T00:00:00+05:30'
+const additionalShipToOptionsByBuyerCode = {
+  B001: [
+    {
+      id: 'carlsberg-lonand',
+      shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
+      shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
+    },
+  ],
+}
 
 async function readCsv(filePath) {
   const content = await fs.readFile(filePath, 'utf8')
@@ -34,6 +46,7 @@ async function initializeDatabase() {
   db = new DatabaseSync(dbPath)
   db.exec(`
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
 
     CREATE TABLE IF NOT EXISTS buyers (
       buyer_code TEXT PRIMARY KEY,
@@ -83,6 +96,8 @@ async function initializeDatabase() {
       buyer_code TEXT NOT NULL,
       buyer_name_snapshot TEXT NOT NULL,
       buyer_gstin_snapshot TEXT DEFAULT '',
+      ship_to_name_snapshot TEXT DEFAULT '',
+      ship_to_address_snapshot TEXT DEFAULT '',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -104,9 +119,106 @@ async function initializeDatabase() {
       taxable_value REAL NOT NULL,
       FOREIGN KEY (invoice_number) REFERENCES invoices(invoice_number) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `)
 
+  migrateInvoicePaymentTracking()
   await seedDatabaseFromCsv()
+}
+
+function migrateInvoicePaymentTracking() {
+  addInvoiceColumnIfMissing('is_paid', 'INTEGER NOT NULL DEFAULT 0')
+  addInvoiceColumnIfMissing('paid_at', "TEXT DEFAULT ''")
+  addInvoiceColumnIfMissing('paid_amount', 'REAL NOT NULL DEFAULT 0')
+  addInvoiceColumnIfMissing('payment_batch_note', "TEXT DEFAULT ''")
+  addInvoiceColumnIfMissing('ship_to_name_snapshot', "TEXT DEFAULT ''")
+  addInvoiceColumnIfMissing('ship_to_address_snapshot', "TEXT DEFAULT ''")
+  seedPaymentTrackingBaseline()
+  normalizeBaselinePaymentDate()
+}
+
+function addInvoiceColumnIfMissing(columnName, columnDefinition) {
+  const columns = db.prepare('PRAGMA table_info(invoices)').all()
+  const exists = columns.some((column) => column.name === columnName)
+  if (!exists) {
+    db.exec(`ALTER TABLE invoices ADD COLUMN ${columnName} ${columnDefinition}`)
+  }
+}
+
+function seedPaymentTrackingBaseline() {
+  const seedKey = 'payment_tracking_seed_v1'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(seedKey)
+  if (existing) {
+    return
+  }
+
+  const invoices = db.prepare(`
+    SELECT invoice_number
+    FROM invoices
+    ORDER BY created_at DESC, invoice_number DESC
+  `).all()
+
+  const unpaidNumbers = new Set(invoices.slice(0, 5).map((invoice) => invoice.invoice_number))
+  const markInvoice = db.prepare(`
+    UPDATE invoices
+    SET
+      is_paid = ?,
+      paid_at = ?,
+      paid_amount = ?,
+      payment_batch_note = ?
+    WHERE invoice_number = ?
+  `)
+
+  const seedBaseline = withTransaction(() => {
+    invoices.forEach((invoice) => {
+      const isUnpaid = unpaidNumbers.has(invoice.invoice_number)
+      markInvoice.run(
+        isUnpaid ? 0 : 1,
+        isUnpaid ? '' : baselinePaidAt,
+        isUnpaid ? 0 : invoiceServiceFee,
+        isUnpaid ? 'Generated after payment counter reset.' : 'Paid before payment counter reset.',
+        invoice.invoice_number,
+      )
+    })
+
+    db.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).run(seedKey, 'latest_5_unpaid')
+  })
+
+  seedBaseline()
+}
+
+function normalizeBaselinePaymentDate() {
+  const migrationKey = 'payment_tracking_baseline_date_v1'
+  const applyMigration = withTransaction(() => {
+    const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(migrationKey)
+    if (existing) {
+      return
+    }
+
+    db.prepare(`
+      UPDATE invoices
+      SET paid_at = ?
+      WHERE
+        is_paid = 1
+        AND payment_batch_note = 'Paid before payment counter reset.'
+        AND paid_at != ?
+    `).run(baselinePaidAt, baselinePaidAt)
+
+    db.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).run(migrationKey, baselinePaidAt)
+  })
+
+  applyMigration()
 }
 
 async function seedDatabaseFromCsv() {
@@ -235,7 +347,13 @@ async function readInvoiceHistory(limit = 200) {
       i.buyer_code,
       i.buyer_name_snapshot,
       i.buyer_gstin_snapshot,
+      i.ship_to_name_snapshot,
+      i.ship_to_address_snapshot,
       i.created_at,
+      i.is_paid,
+      i.paid_at,
+      i.paid_amount,
+      i.payment_batch_note,
       COALESCE(lines.line_count, 0) AS line_count
     FROM invoices i
     LEFT JOIN (
@@ -257,9 +375,81 @@ async function readInvoiceHistory(limit = 200) {
     buyerCode: row.buyer_code,
     buyerName: row.buyer_name_snapshot,
     buyerGstin: row.buyer_gstin_snapshot || '',
+    shipToName: row.ship_to_name_snapshot || '',
+    shipToAddress: row.ship_to_address_snapshot || '',
     createdAt: row.created_at,
+    isPaid: Boolean(row.is_paid),
+    paidAt: row.paid_at || '',
+    paidAmount: Number(row.paid_amount || 0),
+    paymentBatchNote: row.payment_batch_note || '',
     lineCount: Number(row.line_count || 0),
   }))
+}
+
+async function readPaymentSummary() {
+  await dbReady
+  return getPaymentSummary()
+}
+
+function getPaymentSummary() {
+  const summary = db.prepare(`
+    SELECT
+      COUNT(*) AS total_count,
+      SUM(CASE WHEN is_paid = 0 THEN 1 ELSE 0 END) AS unpaid_count,
+      SUM(CASE WHEN is_paid = 1 THEN 1 ELSE 0 END) AS paid_count,
+      SUM(CASE WHEN is_paid = 1 THEN paid_amount ELSE 0 END) AS paid_amount_total
+    FROM invoices
+  `).get()
+
+  const unpaidCount = Number(summary.unpaid_count || 0)
+
+  return {
+    totalInvoices: Number(summary.total_count || 0),
+    paidInvoices: Number(summary.paid_count || 0),
+    unpaidInvoices: unpaidCount,
+    invoiceRate: invoiceServiceFee,
+    amountDue: unpaidCount * invoiceServiceFee,
+    paidAmountTotal: Number(summary.paid_amount_total || 0),
+  }
+}
+
+async function markUnpaidInvoicesPaid(password) {
+  await dbReady
+
+  if (String(password || '') !== paymentPassword) {
+    const error = new Error('Incorrect payment password.')
+    error.statusCode = 401
+    throw error
+  }
+
+  const unpaid = db.prepare(`
+    SELECT invoice_number
+    FROM invoices
+    WHERE is_paid = 0
+    ORDER BY created_at ASC, invoice_number ASC
+  `).all()
+
+  if (unpaid.length) {
+    const now = new Date().toISOString()
+    const markPaid = withTransaction(() => {
+      db.prepare(`
+        UPDATE invoices
+        SET
+          is_paid = 1,
+          paid_at = ?,
+          paid_amount = ?,
+          payment_batch_note = ?
+        WHERE is_paid = 0
+      `).run(now, invoiceServiceFee, 'Marked paid from invoice history.')
+    })
+
+    markPaid()
+  }
+
+  return {
+    markedCount: unpaid.length,
+    summary: getPaymentSummary(),
+  }
 }
 
 function createBuyer(input) {
@@ -487,6 +677,7 @@ async function buildInvoicePayload(input) {
   if (!buyer) {
     throw new Error('Selected buyer was not found.')
   }
+  const shipToSelection = resolveShipToSelection(buyer, input.shipToOptionId)
 
   const lineItemsInput = Array.isArray(input.lineItems) ? input.lineItems : []
   if (!lineItemsInput.length) {
@@ -561,7 +752,12 @@ async function buildInvoicePayload(input) {
     sgst,
     taxableAfterGst,
     total,
-    buyer,
+    buyer: {
+      ...buyer,
+      Ship_To_Name: shipToSelection.shipToName,
+      Ship_To_Address: shipToSelection.shipToAddress,
+    },
+    shipToOptionId: shipToSelection.id,
     lines,
   }
 }
@@ -632,6 +828,12 @@ async function saveInvoiceHistory(invoice) {
   await dbReady
 
   const persistInvoice = withTransaction((payload) => {
+    const existingPayment = db.prepare(`
+      SELECT is_paid, paid_at, paid_amount, payment_batch_note
+      FROM invoices
+      WHERE invoice_number = ?
+    `).get(payload.invoiceNumber)
+
     db.prepare(`
       INSERT OR REPLACE INTO invoices (
         invoice_number,
@@ -648,8 +850,14 @@ async function saveInvoiceHistory(invoice) {
         total,
         buyer_code,
         buyer_name_snapshot,
-        buyer_gstin_snapshot
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        buyer_gstin_snapshot,
+        ship_to_name_snapshot,
+        ship_to_address_snapshot,
+        is_paid,
+        paid_at,
+        paid_amount,
+        payment_batch_note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       payload.invoiceNumber,
       payload.invoiceKey,
@@ -666,6 +874,12 @@ async function saveInvoiceHistory(invoice) {
       payload.buyer.Buyer_Code,
       payload.buyer.Buyer_Name,
       payload.buyer.GSTIN || '',
+      payload.buyer.Ship_To_Name || '',
+      payload.buyer.Ship_To_Address || '',
+      existingPayment?.is_paid ?? 0,
+      existingPayment?.paid_at || '',
+      existingPayment?.paid_amount ?? 0,
+      existingPayment?.payment_batch_note || '',
     )
 
     db.prepare('DELETE FROM invoice_lines WHERE invoice_number = ?').run(payload.invoiceNumber)
@@ -710,6 +924,62 @@ async function saveInvoiceHistory(invoice) {
   })
 
   persistInvoice(invoice)
+}
+
+function resolveShipToSelection(buyer, requestedOptionId) {
+  const options = buildShipToOptions(buyer)
+  const defaultOption = options.find((option) => option.id === defaultShipToOptionId(buyer)) || options[0]
+  const selected = options.find((option) => option.id === requestedOptionId) || defaultOption
+
+  return {
+    id: selected.id,
+    shipToName: selected.shipToName,
+    shipToAddress: selected.shipToAddress,
+  }
+}
+
+function buildShipToOptions(buyer) {
+  const options = [
+    {
+      id: 'bill_to',
+      shipToName: 'SAME As TO',
+      shipToAddress: '',
+    },
+  ]
+
+  if (hasDistinctMasterShipTo(buyer)) {
+    options.push({
+      id: 'master_ship_to',
+      shipToName: sanitizeLine(buyer.Ship_To_Name),
+      shipToAddress: sanitizeLine(buyer.Ship_To_Address),
+    })
+  }
+
+  const extras = additionalShipToOptionsByBuyerCode[buyer.Buyer_Code] || []
+  extras.forEach((option) => {
+    options.push({
+      id: option.id,
+      shipToName: sanitizeLine(option.shipToName),
+      shipToAddress: sanitizeLine(option.shipToAddress),
+    })
+  })
+
+  return options
+}
+
+function hasDistinctMasterShipTo(buyer) {
+  const shipToName = sanitizeLine(buyer.Ship_To_Name)
+  const shipToAddress = sanitizeLine(buyer.Ship_To_Address)
+  return (
+    !!shipToAddress &&
+    !!shipToName &&
+    shipToName.toUpperCase() !== 'SAME AS TO' &&
+    shipToName.toUpperCase() !== sanitizeLine(buyer.Buyer_Name).toUpperCase()
+  )
+}
+
+function defaultShipToOptionId(buyer) {
+  return hasDistinctMasterShipTo(buyer) ? 'master_ship_to' : 'bill_to'
 }
 
 function withTransaction(callback) {
@@ -1408,6 +1678,8 @@ export {
   readBuyers,
   readItems,
   readInvoiceHistory,
+  readPaymentSummary,
+  markUnpaidInvoicesPaid,
   createBuyer,
   updateBuyer,
   deleteBuyer,

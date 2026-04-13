@@ -5,6 +5,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { createAdminSession, extractBearerToken, invalidateAdminSession, requireAdmin } from './admin-session.js'
 import { adminPassword, distDir, generatedExcelDir, generatedPdfDir } from './config.js'
+import { buildEwayBulkJson, readEwayReadiness } from './eway-core.js'
 import {
   buildInvoicePayload,
   createBuyer,
@@ -14,9 +15,11 @@ import {
   deleteItem,
   generateExcelInvoice,
   generatePdfInvoice,
+  markUnpaidInvoicesPaid,
   readBuyers,
   readInvoiceHistory,
   readItems,
+  readPaymentSummary,
   saveInvoiceHistory,
   updateBuyer,
   updateItem,
@@ -144,9 +147,44 @@ app.get('/api/invoices/history', async (req, res) => {
       }
     })
 
-    res.json({ invoices: withFiles })
+    res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary() })
   } catch (error) {
     res.status(500).json({ error: error.message })
+  }
+})
+
+app.post('/api/invoices/mark-paid', async (req, res) => {
+  try {
+    const result = await markUnpaidInvoicesPaid(req.body?.password)
+    res.json(result)
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message })
+  }
+})
+
+app.get('/api/eway/readiness', async (_req, res) => {
+  try {
+    res.json(readEwayReadiness())
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/eway/invoices/:invoiceKey/bulk-json', async (req, res) => {
+  try {
+    const payload = buildEwayBulkJson(req.params.invoiceKey, {
+      distanceKm: req.query?.distanceKm,
+    })
+    const filename = `${req.params.invoiceKey}-eway.json`
+
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(JSON.stringify(payload, null, 2))
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      error: error.message,
+      details: error.details,
+    })
   }
 })
 

@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 const maxLineItems = 8
+const defaultPaymentSummary = {
+  totalInvoices: 0,
+  paidInvoices: 0,
+  unpaidInvoices: 0,
+  invoiceRate: 100,
+  amountDue: 0,
+  paidAmountTotal: 0,
+}
 
 const emptyBuyerForm = {
   Buyer_Code: '',
@@ -25,6 +33,16 @@ const emptyItemForm = {
   Dad_Writes_As: '',
   Category: '',
 }
+const additionalShipToOptionsByBuyerCode = {
+  B001: [
+    {
+      id: 'carlsberg-lonand',
+      label: 'Carlsberg India Pvt. Ltd. (PVL CO Brewery) - MIDC Lonand',
+      shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
+      shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
+    },
+  ],
+}
 
 function generateClientId() {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -45,16 +63,74 @@ function createLineItem(itemCode = '') {
 function createInitialInvoiceForm(defaultBuyerCode = '', defaultItemCode = '') {
   return {
     buyerCode: defaultBuyerCode,
+    shipToOptionId: 'bill_to',
     vehicleNumber: '',
     invoiceDate: new Date().toISOString().slice(0, 10),
     lineItems: [createLineItem(defaultItemCode)],
   }
 }
 
+function hasDistinctMasterShipTo(buyer) {
+  if (!buyer) {
+    return false
+  }
+
+  const shipToName = String(buyer.Ship_To_Name || '').trim()
+  const shipToAddress = String(buyer.Ship_To_Address || '').trim()
+  const buyerName = String(buyer.Buyer_Name || '').trim()
+
+  return (
+    !!shipToName &&
+    !!shipToAddress &&
+    shipToName.toUpperCase() !== 'SAME AS TO' &&
+    shipToName.toUpperCase() !== buyerName.toUpperCase()
+  )
+}
+
+function buildShipToOptions(buyer) {
+  const options = [
+    {
+      id: 'bill_to',
+      label: 'Bill To (Same as buyer address)',
+      shipToName: 'SAME As TO',
+      shipToAddress: '',
+    },
+  ]
+
+  if (!buyer) {
+    return options
+  }
+
+  if (hasDistinctMasterShipTo(buyer)) {
+    options.push({
+      id: 'master_ship_to',
+      label: `Master Ship-To: ${buyer.Ship_To_Name}`,
+      shipToName: buyer.Ship_To_Name,
+      shipToAddress: buyer.Ship_To_Address,
+    })
+  }
+
+  const additional = additionalShipToOptionsByBuyerCode[buyer.Buyer_Code] || []
+  return [...options, ...additional]
+}
+
+function defaultShipToOptionId(buyer) {
+  return hasDistinctMasterShipTo(buyer) ? 'master_ship_to' : 'bill_to'
+}
+
+function resolveShipToOptionId(requestedOptionId, buyer) {
+  const options = buildShipToOptions(buyer)
+  if (options.some((option) => option.id === requestedOptionId)) {
+    return requestedOptionId
+  }
+  return defaultShipToOptionId(buyer)
+}
+
 function syncInvoiceForm(current, buyers, items) {
   const buyerCode = buyers.some((buyer) => buyer.Buyer_Code === current.buyerCode)
     ? current.buyerCode
     : buyers[0]?.Buyer_Code || ''
+  const selectedBuyer = buyers.find((buyer) => buyer.Buyer_Code === buyerCode)
   const fallbackItemCode = items[0]?.Item_Code || ''
   const lineItems =
     current.lineItems.length > 0
@@ -67,6 +143,7 @@ function syncInvoiceForm(current, buyers, items) {
   return {
     ...current,
     buyerCode,
+    shipToOptionId: resolveShipToOptionId(current.shipToOptionId, selectedBuyer),
     lineItems,
   }
 }
@@ -150,10 +227,22 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [historySearch, setHistorySearch] = useState('')
+  const [paymentSummary, setPaymentSummary] = useState(defaultPaymentSummary)
+  const [paymentStatus, setPaymentStatus] = useState('')
+  const [paymentError, setPaymentError] = useState('')
+  const [markingPaid, setMarkingPaid] = useState(false)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [paymentPasswordInput, setPaymentPasswordInput] = useState('')
+  const [ewayReadiness, setEwayReadiness] = useState([])
+  const [ewaySummary, setEwaySummary] = useState({ total: 0, ready: 0, needsInput: 0 })
+  const [ewayLoading, setEwayLoading] = useState(false)
+  const [ewayError, setEwayError] = useState('')
+  const [ewayDistanceOverrides, setEwayDistanceOverrides] = useState({})
 
   useEffect(() => {
     refreshMasters()
     refreshHistory()
+    refreshEwayReadiness()
   }, [])
 
   useEffect(() => {
@@ -167,6 +256,11 @@ function App() {
   const selectedBuyer = useMemo(
     () => buyers.find((buyer) => buyer.Buyer_Code === form.buyerCode),
     [buyers, form.buyerCode],
+  )
+  const shipToOptions = useMemo(() => buildShipToOptions(selectedBuyer), [selectedBuyer])
+  const selectedShipToOption = useMemo(
+    () => shipToOptions.find((option) => option.id === form.shipToOptionId) || shipToOptions[0] || null,
+    [form.shipToOptionId, shipToOptions],
   )
 
   const computedLines = useMemo(
@@ -278,6 +372,11 @@ function App() {
     )
   }, [historySearch, invoiceHistory])
 
+  const ewayReadinessByKey = useMemo(
+    () => new Map(ewayReadiness.map((invoice) => [invoice.invoiceKey, invoice])),
+    [ewayReadiness],
+  )
+
   async function refreshMasters() {
     try {
       const response = await fetch('/api/masters')
@@ -309,10 +408,145 @@ function App() {
       }
 
       setInvoiceHistory(Array.isArray(data.invoices) ? data.invoices : [])
+      setPaymentSummary(data.paymentSummary || defaultPaymentSummary)
     } catch (loadError) {
       setHistoryError(loadError.message)
     } finally {
       setHistoryLoading(false)
+    }
+  }
+
+  async function refreshEwayReadiness() {
+    setEwayLoading(true)
+    setEwayError('')
+
+    try {
+      const response = await fetch('/api/eway/readiness')
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load E-way readiness.')
+      }
+
+      setEwayReadiness(Array.isArray(data.invoices) ? data.invoices : [])
+      setEwaySummary(data.summary || { total: 0, ready: 0, needsInput: 0 })
+    } catch (loadError) {
+      setEwayError(loadError.message)
+    } finally {
+      setEwayLoading(false)
+    }
+  }
+
+  function updateEwayDistance(invoiceKey, value) {
+    setEwayDistanceOverrides((current) => ({
+      ...current,
+      [invoiceKey]: value,
+    }))
+  }
+
+  function getEwayDistance(invoice) {
+    return ewayDistanceOverrides[invoice.invoiceKey] ?? (invoice.distanceKm ? String(invoice.distanceKm) : '')
+  }
+
+  function canDownloadEwayJson(invoice) {
+    const distance = Number(getEwayDistance(invoice))
+    const unresolved = (invoice.missingFields || []).filter((field) => field !== 'distance_km')
+    return unresolved.length === 0 && Number.isFinite(distance) && distance > 0
+  }
+
+  function buildEwayJsonUrl(invoice) {
+    const params = new URLSearchParams()
+    const distance = getEwayDistance(invoice)
+    if (distance) {
+      params.set('distanceKm', distance)
+    }
+
+    return `/api/eway/invoices/${encodeURIComponent(invoice.invoiceKey)}/bulk-json?${params.toString()}`
+  }
+
+  function getEwayDownloadState(invoice) {
+    if (!invoice?.pdfAvailable) {
+      return { canDownload: false, reason: 'PDF missing', readiness: null }
+    }
+
+    const readiness = ewayReadinessByKey.get(invoice.invoiceKey)
+    if (!readiness) {
+      return { canDownload: false, reason: ewayLoading ? 'Checking readiness' : 'Readiness unavailable', readiness: null }
+    }
+
+    const distance = Number(getEwayDistance(readiness))
+    const unresolved = (readiness.missingFields || []).filter((field) => field !== 'distance_km')
+
+    if (unresolved.length) {
+      return { canDownload: false, reason: `Missing ${unresolved.join(', ')}`, readiness }
+    }
+    if (!Number.isFinite(distance) || distance <= 0) {
+      return { canDownload: false, reason: 'Missing distance', readiness }
+    }
+
+    return { canDownload: true, reason: '', readiness }
+  }
+
+  function renderEwayJsonAction(invoice) {
+    const state = getEwayDownloadState(invoice)
+
+    if (state.canDownload) {
+      return (
+        <a href={buildEwayJsonUrl(state.readiness)} target="_blank" rel="noreferrer">
+          E-way JSON
+        </a>
+      )
+    }
+
+    return <span className="history-file-missing">E-way JSON: {state.reason}</span>
+  }
+
+  function openPaymentModal() {
+    setPaymentModalOpen(true)
+    setPaymentPasswordInput('')
+    setPaymentError('')
+  }
+
+  function closePaymentModal(force = false) {
+    if (markingPaid && !force) {
+      return
+    }
+
+    setPaymentModalOpen(false)
+    setPaymentPasswordInput('')
+    setPaymentError('')
+  }
+
+  async function handleMarkPaid() {
+    if (!paymentPasswordInput.trim()) {
+      setPaymentError('Payment password is required.')
+      return
+    }
+
+    setMarkingPaid(true)
+    setPaymentError('')
+    setPaymentStatus('')
+
+    try {
+      const response = await fetch('/api/invoices/mark-paid', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: paymentPasswordInput }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to mark invoices paid.')
+      }
+
+      setPaymentSummary(data.summary || defaultPaymentSummary)
+      setPaymentStatus(`Marked ${data.markedCount || 0} invoice(s) as paid.`)
+      closePaymentModal(true)
+      await refreshHistory()
+    } catch (payError) {
+      setPaymentError(payError.message)
+    } finally {
+      setMarkingPaid(false)
     }
   }
 
@@ -422,6 +656,7 @@ function App() {
       }
       setResult(data)
       await refreshHistory()
+      await refreshEwayReadiness()
     } catch (submitError) {
       setError(submitError.message)
     } finally {
@@ -431,10 +666,17 @@ function App() {
 
   function updateInvoiceField(event) {
     const { name, value } = event.target
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }))
+    if (name === 'buyerCode') {
+      const buyer = buyers.find((entry) => entry.Buyer_Code === value)
+      setForm((current) => ({
+        ...current,
+        buyerCode: value,
+        shipToOptionId: resolveShipToOptionId(current.shipToOptionId, buyer),
+      }))
+      return
+    }
+
+    setForm((current) => ({ ...current, [name]: value }))
   }
 
   function updateLineItem(id, field, value) {
@@ -626,6 +868,13 @@ function App() {
     }
   }
 
+  const generatedEwayState = result
+    ? getEwayDownloadState({
+        invoiceKey: result.invoice.invoiceKey,
+        pdfAvailable: Boolean(result.files?.pdf),
+      })
+    : { canDownload: false, reason: 'PDF not generated yet', readiness: null }
+
   if (loading) {
     return (
       <main className="app-shell app-shell-loading">
@@ -727,6 +976,17 @@ function App() {
                   {buyers.map((buyer) => (
                     <option key={buyer.Buyer_Code} value={buyer.Buyer_Code}>
                       {buyer.Buyer_Name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field-span-2">
+                <span>Ship to address</span>
+                <select name="shipToOptionId" value={form.shipToOptionId} onChange={updateInvoiceField}>
+                  {shipToOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
@@ -875,6 +1135,17 @@ function App() {
                 </div>
               </header>
 
+              <div className="preview-rate-bar">
+                <div>
+                  <span>Ship to mode</span>
+                  <strong>{selectedShipToOption?.id === 'bill_to' ? 'Bill To' : 'Bill To - Ship To'}</strong>
+                </div>
+                <div>
+                  <span>Ship to party</span>
+                  <strong>{selectedShipToOption?.shipToName || 'SAME As TO'}</strong>
+                </div>
+              </div>
+
               <div className="preview-lines">
                 {computedLines.map((line, index) => (
                   <div className="preview-line" key={line.id}>
@@ -953,10 +1224,22 @@ function App() {
                   <a href={result.files.pdf} target="_blank" rel="noreferrer">
                     Download PDF
                   </a>
+                  {generatedEwayState.canDownload ? (
+                    <a href={buildEwayJsonUrl(generatedEwayState.readiness)} target="_blank" rel="noreferrer">
+                      Download E-way JSON
+                    </a>
+                  ) : (
+                    <span className="download-disabled">E-way JSON: {generatedEwayState.reason}</span>
+                  )}
                 </div>
               </div>
             ) : (
-              <p className="hint-text">Generate an invoice to get downloadable Excel and PDF files.</p>
+              <div className="downloads downloads-muted">
+                <p className="hint-text">Generate an invoice to get downloadable Excel, PDF, and E-way JSON files.</p>
+                <div className="download-actions">
+                  <span className="download-disabled">Download E-way JSON: PDF not generated yet</span>
+                </div>
+              </div>
             )}
           </section>
         </section>
@@ -967,11 +1250,29 @@ function App() {
           <div className="panel-header panel-header-row">
             <div>
               <h2>Invoice History</h2>
-              <p>Review previously generated invoices and download available files.</p>
+              <p>Review generated invoices, download files, and clear the payment counter when paid.</p>
             </div>
-            <button className="secondary-button" type="button" onClick={refreshHistory} disabled={historyLoading}>
-              {historyLoading ? 'Refreshing...' : 'Refresh history'}
-            </button>
+            <div className="panel-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={openPaymentModal}
+                disabled={markingPaid || paymentSummary.unpaidInvoices === 0}
+              >
+                {markingPaid ? 'Marking paid...' : 'Mark Paid'}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  refreshHistory()
+                  refreshEwayReadiness()
+                }}
+                disabled={historyLoading || ewayLoading}
+              >
+                {historyLoading ? 'Refreshing...' : 'Refresh history'}
+              </button>
+            </div>
           </div>
 
           <div className="history-overview">
@@ -980,14 +1281,18 @@ function App() {
               <strong>{invoiceHistory.length}</strong>
             </article>
             <article>
-              <span>Filtered</span>
-              <strong>{filteredInvoiceHistory.length}</strong>
+              <span>Non Paid Invoices</span>
+              <strong>{paymentSummary.unpaidInvoices}</strong>
             </article>
             <article>
-              <span>Total value</span>
-              <strong>{formatMoney(filteredInvoiceHistory.reduce((sum, entry) => sum + Number(entry.total || 0), 0))}</strong>
+              <span>Amount Due</span>
+              <strong>{formatMoney(paymentSummary.amountDue)}</strong>
             </article>
           </div>
+
+          <p className="hint-text">
+            Paid so far: {formatMoney(paymentSummary.paidAmountTotal)} at {formatMoney(paymentSummary.invoiceRate)} per invoice.
+          </p>
 
           <label className="search-field history-search">
             <span>Search history</span>
@@ -999,6 +1304,9 @@ function App() {
           </label>
 
           {historyError ? <p className="error-banner">{historyError}</p> : null}
+          {paymentError ? <p className="error-banner">{paymentError}</p> : null}
+          {paymentStatus ? <p className="success-banner">{paymentStatus}</p> : null}
+          {ewayError ? <p className="error-banner">{ewayError}</p> : null}
           {historyLoading ? <p className="hint-text">Loading invoice history...</p> : null}
           {!historyLoading && !filteredInvoiceHistory.length ? (
             <p className="hint-text">No invoices found for the current filter.</p>
@@ -1016,6 +1324,7 @@ function App() {
                       <th>Vehicle</th>
                       <th>Lines</th>
                       <th>Total</th>
+                      <th>Payment</th>
                       <th>Files</th>
                     </tr>
                   </thead>
@@ -1035,6 +1344,12 @@ function App() {
                         <td>{invoice.lineCount}</td>
                         <td>{formatMoney(invoice.total)}</td>
                         <td>
+                          <span className={`payment-pill ${invoice.isPaid ? 'payment-pill-paid' : 'payment-pill-unpaid'}`}>
+                            {invoice.isPaid ? 'Paid' : 'Non paid'}
+                          </span>
+                          {invoice.paidAt ? <small>{formatDisplayDateTime(invoice.paidAt)}</small> : null}
+                        </td>
+                        <td>
                           <div className="history-downloads">
                             {invoice.excelAvailable ? (
                               <a href={invoice.files.excel} target="_blank" rel="noreferrer">
@@ -1050,6 +1365,7 @@ function App() {
                             ) : (
                               <span className="history-file-missing">PDF missing</span>
                             )}
+                            {renderEwayJsonAction(invoice)}
                           </div>
                         </td>
                       </tr>
@@ -1088,6 +1404,10 @@ function App() {
                         <dd>{formatMoney(invoice.total)}</dd>
                       </div>
                       <div>
+                        <dt>Payment</dt>
+                        <dd>{invoice.isPaid ? 'Paid' : 'Non paid'}</dd>
+                      </div>
+                      <div>
                         <dt>Generated</dt>
                         <dd>{formatDisplayDateTime(invoice.createdAt)}</dd>
                       </div>
@@ -1108,6 +1428,7 @@ function App() {
                       ) : (
                         <span className="history-file-missing">PDF missing</span>
                       )}
+                      {renderEwayJsonAction(invoice)}
                     </div>
                   </article>
                 ))}
@@ -1115,6 +1436,73 @@ function App() {
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {paymentModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => closePaymentModal()}>
+          <form
+            className="panel modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-modal-title"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleMarkPaid()
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="panel-header">
+              <h2 id="payment-modal-title">Confirm Payment</h2>
+              <p>Confirm this payment batch.</p>
+            </div>
+
+            <div className="history-overview modal-metrics">
+              <article>
+                <span>Non Paid Invoices</span>
+                <strong>{paymentSummary.unpaidInvoices}</strong>
+              </article>
+              <article>
+                <span>Amount Due</span>
+                <strong>{formatMoney(paymentSummary.amountDue)}</strong>
+              </article>
+              <article>
+                <span>Rate</span>
+                <strong>{formatMoney(paymentSummary.invoiceRate)}</strong>
+              </article>
+            </div>
+
+            <p className="hint-text">
+              Mark {paymentSummary.unpaidInvoices} invoices as paid for {formatMoney(paymentSummary.amountDue)}.
+            </p>
+
+            <label className="search-field">
+              <span>Payment Password</span>
+              <input
+                type="password"
+                value={paymentPasswordInput}
+                onChange={(event) => setPaymentPasswordInput(event.target.value)}
+                placeholder="Enter payment password"
+                autoComplete="current-password"
+                autoFocus
+              />
+            </label>
+
+            {paymentError ? <p className="error-banner">{paymentError}</p> : null}
+
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={() => closePaymentModal()} disabled={markingPaid}>
+                Cancel
+              </button>
+              <button
+                className="primary-button modal-primary"
+                type="submit"
+                disabled={markingPaid || !paymentPasswordInput.trim()}
+              >
+                {markingPaid ? 'Confirming...' : 'Confirm Payment'}
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
 
       {(activeView === 'buyers' || activeView === 'items') && !adminToken ? (
