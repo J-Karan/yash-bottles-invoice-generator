@@ -16,11 +16,14 @@ Server code is now split into focused modules:
 
 - `server/index.js` - server entrypoint
 - `server/app.js` - express app and routes
-- `server/invoice-core.js` - DB, business rules, Excel/PDF generation
+- `server/invoice-core.js` - DB, invoice history, Excel/PDF generation
+- `server/invoice-rules.js` - pure invoice math and financial-year rules
 - `server/admin-session.js` - admin token session middleware
 - `server/config.js` - runtime paths and config
 
 ## Local Run
+
+Use Node.js 22.5.0 or newer. The backend uses the built-in `node:sqlite` module.
 
 Install dependencies:
 
@@ -38,6 +41,12 @@ Open:
 
 ```text
 http://localhost:5173
+```
+
+Run tests:
+
+```powershell
+npm test
 ```
 
 ## Production Run
@@ -112,6 +121,7 @@ and open available Excel/PDF files.
 - Admin password endpoint: `POST /api/admin/login`
 - Default local password fallback: `admin123`
 - For deployment, set `ADMIN_PASSWORD` from environment
+- Payment confirmation uses `PAYMENT_PASSWORD` from environment
 
 Use `.env.example` as a template.
 
