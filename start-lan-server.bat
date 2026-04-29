@@ -94,17 +94,21 @@ exit /b 1
 
 :check_required_secrets
 if "%ADMIN_PASSWORD%"=="" (
-  echo ADMIN_PASSWORD is required before starting the LAN server.
-  echo Example:
-  echo   set ADMIN_PASSWORD=your-admin-password
-  exit /b 1
+  echo ADMIN_PASSWORD is required for admin login.
+  set /p "ADMIN_PASSWORD=Enter admin password for this server session: "
+  if "!ADMIN_PASSWORD!"=="" (
+    echo ADMIN_PASSWORD cannot be empty.
+    exit /b 1
+  )
 )
 
 if "%PAYMENT_PASSWORD%"=="" (
-  echo PAYMENT_PASSWORD is required before starting the LAN server.
-  echo Example:
-  echo   set PAYMENT_PASSWORD=your-payment-password
-  exit /b 1
+  echo PAYMENT_PASSWORD is required for payment confirmation.
+  set /p "PAYMENT_PASSWORD=Enter payment password for this server session: "
+  if "!PAYMENT_PASSWORD!"=="" (
+    echo PAYMENT_PASSWORD cannot be empty.
+    exit /b 1
+  )
 )
 
 exit /b 0
