@@ -785,7 +785,8 @@
   flex-wrap: wrap;
 }
 
-.history-downloads a {
+.history-downloads a,
+.history-downloads button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -796,6 +797,11 @@
   color: var(--accent);
   font-weight: 700;
   font-size: 0.86rem;
+}
+
+.history-downloads button {
+  border: 0;
+  cursor: pointer;
 }
 
 .history-file-missing {

@@ -386,6 +386,73 @@ async function readInvoiceHistory(limit = 200) {
   }))
 }
 
+async function readInvoiceDraft(invoiceKey) {
+  await dbReady
+
+  const key = String(invoiceKey || '').trim()
+  if (!key) {
+    throw new Error('Invoice key is required.')
+  }
+
+  const invoice = db.prepare(`
+    SELECT
+      invoice_number,
+      invoice_key,
+      invoice_date,
+      vehicle_number,
+      buyer_code,
+      ship_to_name_snapshot,
+      ship_to_address_snapshot
+    FROM invoices
+    WHERE invoice_key = ?
+  `).get(key)
+
+  if (!invoice) {
+    throw new Error('Invoice was not found.')
+  }
+
+  const lines = db.prepare(`
+    SELECT
+      item_code,
+      bags
+    FROM invoice_lines
+    WHERE invoice_number = ?
+    ORDER BY line_index ASC, id ASC
+  `).all(invoice.invoice_number)
+
+  const buyer = mapBuyerRow(db.prepare(`
+    SELECT
+      buyer_code,
+      buyer_name,
+      address_line1,
+      address_line2,
+      address_line3,
+      city_state_pin,
+      gstin,
+      ship_to_name,
+      ship_to_address
+    FROM buyers
+    WHERE buyer_code = ?
+  `).get(invoice.buyer_code))
+
+  return {
+    invoiceNumber: invoice.invoice_number,
+    invoiceKey: invoice.invoice_key,
+    invoiceDate: invoice.invoice_date,
+    buyerCode: invoice.buyer_code,
+    shipToOptionId: resolveShipToOptionIdFromSnapshot(
+      buyer,
+      invoice.ship_to_name_snapshot,
+      invoice.ship_to_address_snapshot,
+    ),
+    vehicleNumber: invoice.vehicle_number,
+    lineItems: lines.map((line) => ({
+      itemCode: line.item_code,
+      bags: String(line.bags || 0),
+    })),
+  }
+}
+
 async function readPaymentSummary() {
   await dbReady
   return getPaymentSummary()
@@ -736,8 +803,26 @@ async function buildInvoicePayload(input) {
   const taxableAfterGst = roundCurrency(taxableValue + cgst + sgst)
   const total = roundCurrency(nonTaxableValue + taxableAfterGst)
 
-  const invoiceNumber = await nextInvoiceNumber(invoiceDate)
-  const invoiceKey = invoiceNumber.replace('/', '-')
+  let invoiceNumber
+  let invoiceKey
+
+  if (input.editInvoiceKey) {
+    const existingInvoice = db.prepare(`
+      SELECT invoice_number, invoice_key
+      FROM invoices
+      WHERE invoice_key = ?
+    `).get(String(input.editInvoiceKey).trim())
+
+    if (!existingInvoice) {
+      throw new Error('Invoice to update was not found.')
+    }
+
+    invoiceNumber = existingInvoice.invoice_number
+    invoiceKey = existingInvoice.invoice_key
+  } else {
+    invoiceNumber = await nextInvoiceNumber(invoiceDate)
+    invoiceKey = invoiceNumber.replace('/', '-')
+  }
 
   return {
     invoiceNumber,
@@ -829,7 +914,7 @@ async function saveInvoiceHistory(invoice) {
 
   const persistInvoice = withTransaction((payload) => {
     const existingPayment = db.prepare(`
-      SELECT is_paid, paid_at, paid_amount, payment_batch_note
+      SELECT is_paid, paid_at, paid_amount, payment_batch_note, created_at
       FROM invoices
       WHERE invoice_number = ?
     `).get(payload.invoiceNumber)
@@ -856,8 +941,9 @@ async function saveInvoiceHistory(invoice) {
         is_paid,
         paid_at,
         paid_amount,
-        payment_batch_note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        payment_batch_note,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       payload.invoiceNumber,
       payload.invoiceKey,
@@ -880,6 +966,7 @@ async function saveInvoiceHistory(invoice) {
       existingPayment?.paid_at || '',
       existingPayment?.paid_amount ?? 0,
       existingPayment?.payment_batch_note || '',
+      existingPayment?.created_at || new Date().toISOString(),
     )
 
     db.prepare('DELETE FROM invoice_lines WHERE invoice_number = ?').run(payload.invoiceNumber)
@@ -980,6 +1067,19 @@ function hasDistinctMasterShipTo(buyer) {
 
 function defaultShipToOptionId(buyer) {
   return hasDistinctMasterShipTo(buyer) ? 'master_ship_to' : 'bill_to'
+}
+
+function resolveShipToOptionIdFromSnapshot(buyer, shipToNameSnapshot, shipToAddressSnapshot) {
+  const options = buildShipToOptions(buyer)
+  const snapshotName = sanitizeLine(shipToNameSnapshot).toUpperCase()
+  const snapshotAddress = sanitizeLine(shipToAddressSnapshot).toUpperCase()
+  const matched = options.find(
+    (option) =>
+      sanitizeLine(option.shipToName).toUpperCase() === snapshotName &&
+      sanitizeLine(option.shipToAddress).toUpperCase() === snapshotAddress,
+  )
+
+  return matched?.id || defaultShipToOptionId(buyer)
 }
 
 function withTransaction(callback) {
@@ -1678,6 +1778,7 @@ export {
   readBuyers,
   readItems,
   readInvoiceHistory,
+  readInvoiceDraft,
   readPaymentSummary,
   markUnpaidInvoicesPaid,
   createBuyer,

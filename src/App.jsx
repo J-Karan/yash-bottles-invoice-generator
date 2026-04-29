@@ -52,11 +52,11 @@ function generateClientId() {
   return `line-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function createLineItem(itemCode = '') {
+function createLineItem(itemCode = '', bags = '1') {
   return {
     id: generateClientId(),
     itemCode,
-    bags: '1',
+    bags,
   }
 }
 
@@ -205,6 +205,8 @@ function App() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [editingInvoice, setEditingInvoice] = useState(null)
+  const [historyActionBusyKey, setHistoryActionBusyKey] = useState('')
 
   const [buyerForm, setBuyerForm] = useState(emptyBuyerForm)
   const [itemForm, setItemForm] = useState(emptyItemForm)
@@ -436,6 +438,13 @@ function App() {
     }
   }
 
+  function resetInvoiceWorkspace() {
+    setEditingInvoice(null)
+    setResult(null)
+    setError('')
+    setForm(syncInvoiceForm(createInitialInvoiceForm(), buyers, items))
+  }
+
   function updateEwayDistance(invoiceKey, value) {
     setEwayDistanceOverrides((current) => ({
       ...current,
@@ -641,6 +650,7 @@ function App() {
     event.preventDefault()
     setSubmitting(true)
     setError('')
+    const isEditingInvoice = Boolean(editingInvoice?.invoiceKey)
 
     try {
       const response = await fetch('/api/invoices/generate', {
@@ -648,11 +658,20 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          editInvoiceKey: editingInvoice?.invoiceKey || '',
+        }),
       })
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate invoice.')
+      }
+      if (isEditingInvoice) {
+        setEditingInvoice({
+          invoiceKey: data.invoice.invoiceKey,
+          invoiceNumber: data.invoice.invoiceNumber,
+        })
       }
       setResult(data)
       await refreshHistory()
@@ -661,6 +680,45 @@ function App() {
       setError(submitError.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function loadInvoiceForEdit(invoice) {
+    setHistoryActionBusyKey(invoice.invoiceKey)
+    setHistoryError('')
+
+    try {
+      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`)
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load invoice.')
+      }
+
+      const draft = data.invoice
+      setEditingInvoice({
+        invoiceKey: draft.invoiceKey,
+        invoiceNumber: draft.invoiceNumber,
+      })
+      setResult(null)
+      setError('')
+      setForm(
+        syncInvoiceForm(
+          {
+            buyerCode: draft.buyerCode,
+            shipToOptionId: draft.shipToOptionId,
+            vehicleNumber: draft.vehicleNumber,
+            invoiceDate: draft.invoiceDate,
+            lineItems: draft.lineItems.map((line) => createLineItem(line.itemCode, String(line.bags || '1'))),
+          },
+          buyers,
+          items,
+        ),
+      )
+      setActiveView('invoice')
+    } catch (loadError) {
+      setHistoryError(loadError.message)
+    } finally {
+      setHistoryActionBusyKey('')
     }
   }
 
@@ -966,8 +1024,25 @@ function App() {
           <form className="panel form-panel" onSubmit={handleSubmit}>
             <div className="panel-header">
               <h2>Invoice details</h2>
-              <p>Buyer and item options now come from SQLite-backed master data.</p>
+              <p>
+                {editingInvoice
+                  ? `Editing ${editingInvoice.invoiceNumber}. Saving will overwrite its Excel and PDF files.`
+                  : 'Buyer and item options now come from SQLite-backed master data.'}
+              </p>
             </div>
+
+            {editingInvoice ? (
+              <div className="downloads">
+                <p>
+                  Editing invoice <strong>{editingInvoice.invoiceNumber}</strong>. Regenerating will rewrite the previous files.
+                </p>
+                <div className="download-actions">
+                  <button className="secondary-button" type="button" onClick={resetInvoiceWorkspace}>
+                    Start new invoice
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="top-fields">
               <label className="field-span-2">
@@ -1113,7 +1188,7 @@ function App() {
             {error ? <p className="error-banner">{error}</p> : null}
 
             <button className="primary-button" type="submit" disabled={submitting}>
-              {submitting ? 'Generating files...' : 'Generate invoice'}
+              {submitting ? 'Generating files...' : editingInvoice ? 'Regenerate invoice' : 'Generate invoice'}
             </button>
           </form>
 
@@ -1215,7 +1290,8 @@ function App() {
             {result ? (
               <div className="downloads">
                 <p>
-                  Generated invoice <strong>{result.invoice.invoiceNumber}</strong>
+                  {editingInvoice ? 'Updated invoice ' : 'Generated invoice '}
+                  <strong>{result.invoice.invoiceNumber}</strong>
                 </p>
                 <div className="download-actions">
                   <a href={result.files.excel} target="_blank" rel="noreferrer">
@@ -1351,6 +1427,14 @@ function App() {
                         </td>
                         <td>
                           <div className="history-downloads">
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => loadInvoiceForEdit(invoice)}
+                              disabled={historyActionBusyKey === invoice.invoiceKey}
+                            >
+                              {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
+                            </button>
                             {invoice.excelAvailable ? (
                               <a href={invoice.files.excel} target="_blank" rel="noreferrer">
                                 Excel
@@ -1414,6 +1498,14 @@ function App() {
                     </dl>
 
                     <div className="history-downloads">
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => loadInvoiceForEdit(invoice)}
+                        disabled={historyActionBusyKey === invoice.invoiceKey}
+                      >
+                        {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
+                      </button>
                       {invoice.excelAvailable ? (
                         <a href={invoice.files.excel} target="_blank" rel="noreferrer">
                           Excel

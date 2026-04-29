@@ -17,6 +17,7 @@ import {
   generatePdfInvoice,
   markUnpaidInvoicesPaid,
   readBuyers,
+  readInvoiceDraft,
   readInvoiceHistory,
   readItems,
   readPaymentSummary,
@@ -150,6 +151,15 @@ app.get('/api/invoices/history', async (req, res) => {
     res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary() })
   } catch (error) {
     res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/invoices/:invoiceKey', async (req, res) => {
+  try {
+    await dbReady
+    res.json({ invoice: await readInvoiceDraft(req.params.invoiceKey) })
+  } catch (error) {
+    res.status(404).json({ error: error.message })
   }
 })
 
