@@ -33,16 +33,6 @@ const emptyItemForm = {
   Dad_Writes_As: '',
   Category: '',
 }
-const additionalShipToOptionsByBuyerCode = {
-  B001: [
-    {
-      id: 'carlsberg-lonand',
-      label: 'Carlsberg India Pvt. Ltd. (PVL CO Brewery) - MIDC Lonand',
-      shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
-      shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
-    },
-  ],
-}
 
 function generateClientId() {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -88,6 +78,10 @@ function hasDistinctMasterShipTo(buyer) {
 }
 
 function buildShipToOptions(buyer) {
+  if (Array.isArray(buyer?.Ship_To_Options) && buyer.Ship_To_Options.length) {
+    return buyer.Ship_To_Options
+  }
+
   const options = [
     {
       id: 'bill_to',
@@ -110,11 +104,14 @@ function buildShipToOptions(buyer) {
     })
   }
 
-  const additional = additionalShipToOptionsByBuyerCode[buyer.Buyer_Code] || []
-  return [...options, ...additional]
+  return options
 }
 
 function defaultShipToOptionId(buyer) {
+  if (buyer?.Default_Ship_To_Option_Id) {
+    return buyer.Default_Ship_To_Option_Id
+  }
+
   return hasDistinctMasterShipTo(buyer) ? 'master_ship_to' : 'bill_to'
 }
 

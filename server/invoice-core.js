@@ -29,6 +29,7 @@ const additionalShipToOptionsByBuyerCode = {
   B001: [
     {
       id: 'carlsberg-lonand',
+      label: 'Carlsberg India Pvt. Ltd. (PVL CO Brewery) - MIDC Lonand',
       shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
       shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
     },
@@ -947,6 +948,7 @@ function buildShipToOptions(buyer) {
   const options = [
     {
       id: 'bill_to',
+      label: 'Bill To (Same as buyer address)',
       shipToName: 'SAME As TO',
       shipToAddress: '',
     },
@@ -955,6 +957,7 @@ function buildShipToOptions(buyer) {
   if (hasDistinctMasterShipTo(buyer)) {
     options.push({
       id: 'master_ship_to',
+      label: `Master Ship-To: ${sanitizeLine(buyer.Ship_To_Name)}`,
       shipToName: sanitizeLine(buyer.Ship_To_Name),
       shipToAddress: sanitizeLine(buyer.Ship_To_Address),
     })
@@ -964,6 +967,7 @@ function buildShipToOptions(buyer) {
   extras.forEach((option) => {
     options.push({
       id: option.id,
+      label: sanitizeLine(option.label) || sanitizeLine(option.shipToName),
       shipToName: sanitizeLine(option.shipToName),
       shipToAddress: sanitizeLine(option.shipToAddress),
     })
@@ -1075,7 +1079,7 @@ function normalizeItemInput(input, options = {}) {
 }
 
 function mapBuyerRow(row) {
-  return {
+  const buyer = {
     Buyer_Code: row.buyer_code,
     Buyer_Name: row.buyer_name,
     Address_Line1: row.address_line1 || '',
@@ -1085,6 +1089,12 @@ function mapBuyerRow(row) {
     GSTIN: row.gstin || '',
     Ship_To_Name: row.ship_to_name || '',
     Ship_To_Address: row.ship_to_address || '',
+  }
+
+  return {
+    ...buyer,
+    Ship_To_Options: buildShipToOptions(buyer),
+    Default_Ship_To_Option_Id: defaultShipToOptionId(buyer),
   }
 }
 
