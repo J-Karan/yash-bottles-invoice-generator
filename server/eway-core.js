@@ -12,41 +12,6 @@ const supplier = {
   stateCode: 27,
 }
 
-const invoiceDistanceKm = {
-  '086-2025-26': 241,
-  '087-2025-26': 246,
-  '088-2025-26': 241,
-  '089-2025-26': 246,
-  '090-2025-26': 241,
-  '091-2025-26': 241,
-  '092-2025-26': 246,
-  '093-2025-26': 246,
-  '094-2025-26': 241,
-  '095-2025-26': 233,
-  '096-2025-26': 241,
-  '097-2025-26': 241,
-  '098-2025-26': 246,
-  '099-2025-26': 241,
-  '100-2025-26': 241,
-  '101-2025-26': 241,
-  '102-2025-26': 246,
-  '103-2025-26': 246,
-  '104-2025-26': 241,
-  '105-2026-27': 246,
-  '106-2026-27': 241,
-  '107-2026-27': 241,
-  '108-2026-27': 241,
-}
-
-const buyerDistanceKm = {
-  B001: 241,
-  B002: 246,
-  B003: 241,
-  B004: 233,
-  B005: 241,
-}
-
-const ambiguousBuyerDistanceCodes = new Set()
 const stateCodeByGstinPrefix = {
   27: { stateName: 'MAHARASHTRA', stateCode: 27 },
 }
@@ -84,7 +49,8 @@ function readEwayReadiness() {
       ORDER BY i.created_at DESC, i.invoice_number DESC
     `).all()
 
-    const invoices = rows.map((row) => buildReadinessEntry(row))
+    const distanceConfig = readDistanceConfig(db)
+    const invoices = rows.map((row) => buildReadinessEntry(row, undefined, distanceConfig))
     const readyCount = invoices.filter((invoice) => invoice.ready).length
 
     return {
@@ -100,8 +66,8 @@ function readEwayReadiness() {
   }
 }
 
-function buildReadinessEntry(row, overrideDistanceKm) {
-  const distance = resolveDistanceKm(row, overrideDistanceKm)
+function buildReadinessEntry(row, overrideDistanceKm, distanceConfig = {}) {
+  const distance = resolveDistanceKm(row, overrideDistanceKm, distanceConfig)
   const destination = deriveDestination(row)
   const missingFields = []
   const warnings = []
@@ -194,9 +160,11 @@ function buildEwayBulkJson(invoiceKey, options = {}) {
       ORDER BY line_index
     `).all(invoice.invoice_number)
 
+    const distanceConfig = readDistanceConfig(db)
     const readiness = buildReadinessEntry(
       { ...invoice, line_count: lines.length },
       options.distanceKm,
+      distanceConfig,
     )
 
     if (readiness.missingFields.length) {
@@ -317,7 +285,24 @@ function buildItemList(lines) {
   return items
 }
 
-function resolveDistanceKm(invoice, overrideDistanceKm) {
+function readDistanceConfig(db) {
+  return {
+    invoiceDistanceKm: Object.fromEntries(
+      db.prepare('SELECT invoice_key, distance_km FROM eway_invoice_distances').all()
+        .map((row) => [row.invoice_key, Number(row.distance_km || 0)]),
+    ),
+    buyerDistanceKm: Object.fromEntries(
+      db.prepare('SELECT buyer_code, distance_km FROM eway_buyer_distances').all()
+        .map((row) => [row.buyer_code, Number(row.distance_km || 0)]),
+    ),
+    ambiguousBuyerDistanceCodes: new Set(
+      db.prepare('SELECT buyer_code FROM eway_ambiguous_buyer_distances').all()
+        .map((row) => row.buyer_code),
+    ),
+  }
+}
+
+function resolveDistanceKm(invoice, overrideDistanceKm, distanceConfig = {}) {
   const override = Number(overrideDistanceKm)
   if (Number.isFinite(override) && override > 0) {
     return { distanceKm: Math.round(override), source: 'manual-override' }
@@ -328,15 +313,15 @@ function resolveDistanceKm(invoice, overrideDistanceKm) {
     return { distanceKm: 75, source: 'ship-to-default' }
   }
 
-  if (invoiceDistanceKm[invoice.invoice_key]) {
-    return { distanceKm: invoiceDistanceKm[invoice.invoice_key], source: 'historical-invoice' }
+  if (distanceConfig.invoiceDistanceKm?.[invoice.invoice_key]) {
+    return { distanceKm: distanceConfig.invoiceDistanceKm[invoice.invoice_key], source: 'historical-invoice' }
   }
 
-  if (buyerDistanceKm[invoice.buyer_code]) {
-    return { distanceKm: buyerDistanceKm[invoice.buyer_code], source: 'buyer-default' }
+  if (distanceConfig.buyerDistanceKm?.[invoice.buyer_code]) {
+    return { distanceKm: distanceConfig.buyerDistanceKm[invoice.buyer_code], source: 'buyer-default' }
   }
 
-  if (ambiguousBuyerDistanceCodes.has(invoice.buyer_code)) {
+  if (distanceConfig.ambiguousBuyerDistanceCodes?.has(invoice.buyer_code)) {
     return { distanceKm: 0, source: 'ambiguous-buyer' }
   }
 

@@ -1629,7 +1629,7 @@ function App() {
             </label>
 
             <p className="hint-text admin-auth-hint">
-              Local default is <code>admin123</code> until you configure <code>ADMIN_PASSWORD</code>.
+              Use the admin password configured on the server.
             </p>
             {authError ? <p className="error-banner">{authError}</p> : null}
 

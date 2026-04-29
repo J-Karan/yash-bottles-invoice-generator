@@ -21,20 +21,16 @@ import {
   deriveFinancialYearSuffix,
   roundCurrency,
 } from './invoice-rules.js'
+import {
+  defaultBuyerShipToOptions,
+  defaultEwayAmbiguousBuyerCodes,
+  defaultEwayBuyerDistances,
+  defaultEwayInvoiceDistances,
+} from './seed-data.js'
 
 let db
 const dbReady = initializeDatabase()
 const baselinePaidAt = '2026-03-28T00:00:00+05:30'
-const additionalShipToOptionsByBuyerCode = {
-  B001: [
-    {
-      id: 'carlsberg-lonand',
-      label: 'Carlsberg India Pvt. Ltd. (PVL CO Brewery) - MIDC Lonand',
-      shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
-      shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
-    },
-  ],
-}
 
 async function readCsv(filePath) {
   const content = await fs.readFile(filePath, 'utf8')
@@ -132,10 +128,40 @@ async function initializeDatabase() {
       setting_value TEXT NOT NULL,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS buyer_ship_to_options (
+      buyer_code TEXT NOT NULL,
+      option_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      ship_to_name TEXT NOT NULL,
+      ship_to_address TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (buyer_code, option_id),
+      FOREIGN KEY (buyer_code) REFERENCES buyers(buyer_code) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS eway_invoice_distances (
+      invoice_key TEXT PRIMARY KEY,
+      distance_km INTEGER NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS eway_buyer_distances (
+      buyer_code TEXT PRIMARY KEY,
+      distance_km INTEGER NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS eway_ambiguous_buyer_distances (
+      buyer_code TEXT PRIMARY KEY,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `)
 
   migrateInvoicePaymentTracking()
   await seedDatabaseFromCsv()
+  seedOperationalDefaults()
 }
 
 function migrateInvoicePaymentTracking() {
@@ -298,6 +324,67 @@ async function seedDatabaseFromCsv() {
 
     insertManyItems(items)
   }
+}
+
+function seedOperationalDefaults() {
+  const seedKey = 'operational_defaults_seed_v1'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(seedKey)
+  if (existing) {
+    return
+  }
+
+  const seedDefaults = withTransaction(() => {
+    const insertShipTo = db.prepare(`
+      INSERT OR IGNORE INTO buyer_ship_to_options (
+        buyer_code,
+        option_id,
+        label,
+        ship_to_name,
+        ship_to_address
+      ) VALUES (?, ?, ?, ?, ?)
+    `)
+
+    defaultBuyerShipToOptions.forEach((option) => {
+      insertShipTo.run(
+        option.buyerCode,
+        option.optionId,
+        option.label,
+        option.shipToName,
+        option.shipToAddress,
+      )
+    })
+
+    const insertInvoiceDistance = db.prepare(`
+      INSERT OR IGNORE INTO eway_invoice_distances (invoice_key, distance_km)
+      VALUES (?, ?)
+    `)
+    defaultEwayInvoiceDistances.forEach(([invoiceKey, distanceKm]) => {
+      insertInvoiceDistance.run(invoiceKey, distanceKm)
+    })
+
+    const insertBuyerDistance = db.prepare(`
+      INSERT OR IGNORE INTO eway_buyer_distances (buyer_code, distance_km)
+      VALUES (?, ?)
+    `)
+    defaultEwayBuyerDistances.forEach(([buyerCode, distanceKm]) => {
+      insertBuyerDistance.run(buyerCode, distanceKm)
+    })
+
+    const insertAmbiguousBuyer = db.prepare(`
+      INSERT OR IGNORE INTO eway_ambiguous_buyer_distances (buyer_code)
+      VALUES (?)
+    `)
+    defaultEwayAmbiguousBuyerCodes.forEach((buyerCode) => {
+      insertAmbiguousBuyer.run(buyerCode)
+    })
+
+    db.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).run(seedKey, 'seeded')
+  })
+
+  seedDefaults()
 }
 
 async function readBuyers() {
@@ -963,13 +1050,23 @@ function buildShipToOptions(buyer) {
     })
   }
 
-  const extras = additionalShipToOptionsByBuyerCode[buyer.Buyer_Code] || []
+  const extras = db.prepare(`
+    SELECT
+      option_id,
+      label,
+      ship_to_name,
+      ship_to_address
+    FROM buyer_ship_to_options
+    WHERE buyer_code = ?
+    ORDER BY option_id COLLATE NOCASE ASC
+  `).all(buyer.Buyer_Code)
+
   extras.forEach((option) => {
     options.push({
-      id: option.id,
-      label: sanitizeLine(option.label) || sanitizeLine(option.shipToName),
-      shipToName: sanitizeLine(option.shipToName),
-      shipToAddress: sanitizeLine(option.shipToAddress),
+      id: option.option_id,
+      label: sanitizeLine(option.label) || sanitizeLine(option.ship_to_name),
+      shipToName: sanitizeLine(option.ship_to_name),
+      shipToAddress: sanitizeLine(option.ship_to_address),
     })
   })
 

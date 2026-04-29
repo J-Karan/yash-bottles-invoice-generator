@@ -6,6 +6,7 @@ import path from 'path'
 import { createAdminSession, extractBearerToken, invalidateAdminSession, requireAdmin } from './admin-session.js'
 import { adminPassword, distDir, generatedExcelDir, generatedPdfDir } from './config.js'
 import { buildEwayBulkJson, readEwayReadiness } from './eway-core.js'
+import { createRateLimiter } from './rate-limit.js'
 import {
   buildInvoicePayload,
   createBuyer,
@@ -27,6 +28,16 @@ import {
 } from './invoice-core.js'
 
 const app = express()
+const adminLoginLimiter = createRateLimiter({
+  windowMs: 1000 * 60 * 15,
+  maxAttempts: 8,
+  message: 'Too many admin login attempts. Try again later.',
+})
+const paymentLimiter = createRateLimiter({
+  windowMs: 1000 * 60 * 15,
+  maxAttempts: 5,
+  message: 'Too many payment password attempts. Try again later.',
+})
 
 app.use(cors())
 app.use(express.json())
@@ -50,7 +61,7 @@ app.get('/api/masters', async (_req, res) => {
   }
 })
 
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
   try {
     await dbReady
     const password = String(req.body?.password || '')
@@ -163,7 +174,7 @@ app.get('/api/invoices/:invoiceKey', async (req, res) => {
   }
 })
 
-app.post('/api/invoices/mark-paid', async (req, res) => {
+app.post('/api/invoices/mark-paid', paymentLimiter, async (req, res) => {
   try {
     const result = await markUnpaidInvoicesPaid(req.body?.password)
     res.json(result)

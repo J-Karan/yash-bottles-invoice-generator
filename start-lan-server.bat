@@ -4,7 +4,6 @@ cd /d "%~dp0"
 
 if "%PORT%"=="" set "PORT=5000"
 if "%HOST%"=="" set "HOST=0.0.0.0"
-if "%ADMIN_PASSWORD%"=="" set "ADMIN_PASSWORD=admin123"
 if "%KEEP_AWAKE%"=="" set "KEEP_AWAKE=1"
 set "KEEP_AWAKE_PID_FILE=%TEMP%\lan-server-keep-awake.pid"
 set "KEEP_AWAKE_SCRIPT=%TEMP%\lan-server-keep-awake.ps1"
@@ -13,6 +12,9 @@ set "KEEP_AWAKE_HELPER_PID="
 call :stop_keep_awake >nul 2>&1
 
 call :prepare_port
+if errorlevel 1 goto :fail
+
+call :check_required_secrets
 if errorlevel 1 goto :fail
 
 echo [1/3] Checking dependencies...
@@ -89,6 +91,23 @@ echo Failed to start server. Review errors above.
 echo Press any key to close this window.
 pause >nul
 exit /b 1
+
+:check_required_secrets
+if "%ADMIN_PASSWORD%"=="" (
+  echo ADMIN_PASSWORD is required before starting the LAN server.
+  echo Example:
+  echo   set ADMIN_PASSWORD=your-admin-password
+  exit /b 1
+)
+
+if "%PAYMENT_PASSWORD%"=="" (
+  echo PAYMENT_PASSWORD is required before starting the LAN server.
+  echo Example:
+  echo   set PAYMENT_PASSWORD=your-payment-password
+  exit /b 1
+)
+
+exit /b 0
 
 :start_keep_awake
 set "KEEP_AWAKE_HELPER_PID="

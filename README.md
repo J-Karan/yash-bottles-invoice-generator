@@ -18,6 +18,8 @@ Server code is now split into focused modules:
 - `server/app.js` - express app and routes
 - `server/invoice-core.js` - DB, invoice history, Excel/PDF generation
 - `server/invoice-rules.js` - pure invoice math and financial-year rules
+- `server/seed-data.js` - first-run operational defaults for special Ship-To and E-way distances
+- `server/rate-limit.js` - in-memory rate limiting for password-protected actions
 - `server/admin-session.js` - admin token session middleware
 - `server/config.js` - runtime paths and config
 
@@ -34,6 +36,8 @@ npm install
 Run frontend + backend:
 
 ```powershell
+$env:ADMIN_PASSWORD="your-admin-password"
+$env:PAYMENT_PASSWORD="your-payment-password"
 npm run dev
 ```
 
@@ -60,6 +64,8 @@ npm run build
 Start server:
 
 ```powershell
+$env:ADMIN_PASSWORD="your-admin-password"
+$env:PAYMENT_PASSWORD="your-payment-password"
 npm start
 ```
 
@@ -74,6 +80,14 @@ http://localhost:5000
 Use:
 
 ```text
+start-lan-server.bat
+```
+
+Before running the batch file, set both required passwords in the same terminal:
+
+```powershell
+set ADMIN_PASSWORD=your-admin-password
+set PAYMENT_PASSWORD=your-payment-password
 start-lan-server.bat
 ```
 
@@ -119,11 +133,22 @@ and open available Excel/PDF files.
 ## Admin Access
 
 - Admin password endpoint: `POST /api/admin/login`
-- Default local password fallback: `admin123`
-- For deployment, set `ADMIN_PASSWORD` from environment
+- `ADMIN_PASSWORD` is required before server startup
 - Payment confirmation uses `PAYMENT_PASSWORD` from environment
+- Admin login and payment confirmation attempts are rate-limited in memory
 
 Use `.env.example` as a template.
+
+## Operational Defaults
+
+Special Ship-To options and E-way distance defaults are seeded into SQLite on first run:
+
+- `buyer_ship_to_options`
+- `eway_invoice_distances`
+- `eway_buyer_distances`
+- `eway_ambiguous_buyer_distances`
+
+After seeding, update these tables instead of editing JavaScript constants.
 
 ## GitHub Hosting Readiness
 

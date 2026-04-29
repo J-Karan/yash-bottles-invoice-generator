@@ -29,10 +29,18 @@ const itemsPath = resolvePath([
 
 const port = Number(process.env.PORT || 5000)
 const host = process.env.HOST || '0.0.0.0'
-const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
-const paymentPassword = process.env.PAYMENT_PASSWORD || 'Ashlesha21@NYRP'
+const adminPassword = requiredSecret('ADMIN_PASSWORD')
+const paymentPassword = requiredSecret('PAYMENT_PASSWORD')
 const invoiceServiceFee = Number(process.env.INVOICE_SERVICE_FEE || 100)
 const maxLineItems = 8
+
+function requiredSecret(name) {
+  const value = String(process.env[name] || '').trim()
+  if (!value) {
+    throw new Error(`${name} must be set before starting the invoice server.`)
+  }
+  return value
+}
 
 function resolvePath(candidates) {
   for (const candidate of candidates) {
