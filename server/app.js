@@ -8,11 +8,13 @@ import { adminPassword, distDir, generatedExcelDir, generatedPdfDir } from './co
 import { buildEwayBulkJson, readEwayReadiness } from './eway-core.js'
 import { createRateLimiter } from './rate-limit.js'
 import {
+  buildInvoiceFileTargets,
   buildInvoicePayload,
   createBuyer,
   createItem,
   dbReady,
   deleteBuyer,
+  deleteInvoiceHistory,
   deleteItem,
   generateExcelInvoice,
   generatePdfInvoice,
@@ -141,10 +143,9 @@ app.get('/api/invoices/history', async (req, res) => {
     const limit = Number(req.query?.limit || 200)
     const invoices = await readInvoiceHistory(limit)
     const withFiles = invoices.map((invoice) => {
-      const excelFilename = `${invoice.invoiceKey}.xlsx`
-      const pdfFilename = `${invoice.invoiceKey}.pdf`
-      const excelPath = path.join(generatedExcelDir, excelFilename)
-      const pdfPath = path.join(generatedPdfDir, pdfFilename)
+      const fileTargets = buildInvoiceFileTargets(invoice.invoiceDate, invoice.invoiceKey)
+      const excelPath = fileTargets.excel.absolutePath
+      const pdfPath = fileTargets.pdf.absolutePath
       const excelAvailable = fsSync.existsSync(excelPath)
       const pdfAvailable = fsSync.existsSync(pdfPath)
 
@@ -153,8 +154,8 @@ app.get('/api/invoices/history', async (req, res) => {
         excelAvailable,
         pdfAvailable,
         files: {
-          excel: excelAvailable ? `/downloads/excel/${excelFilename}` : '',
-          pdf: pdfAvailable ? `/downloads/pdf/${pdfFilename}` : '',
+          excel: excelAvailable ? `/downloads/excel/${fileTargets.excel.relativeUrlPath}` : '',
+          pdf: pdfAvailable ? `/downloads/pdf/${fileTargets.pdf.relativeUrlPath}` : '',
         },
       }
     })
@@ -171,6 +172,16 @@ app.get('/api/invoices/:invoiceKey', async (req, res) => {
     res.json({ invoice: await readInvoiceDraft(req.params.invoiceKey) })
   } catch (error) {
     res.status(404).json({ error: error.message })
+  }
+})
+
+app.delete('/api/invoices/:invoiceKey', async (req, res) => {
+  try {
+    await dbReady
+    const result = await deleteInvoiceHistory(req.params.invoiceKey)
+    res.json(result)
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message })
   }
 })
 
@@ -243,25 +254,21 @@ app.post('/api/invoices/generate', async (req, res) => {
   try {
     await dbReady
     const invoicePayload = await buildInvoicePayload(req.body)
+    const fileTargets = buildInvoiceFileTargets(invoicePayload.invoiceDate, invoicePayload.invoiceKey)
     await Promise.all([
-      fs.mkdir(generatedExcelDir, { recursive: true }),
-      fs.mkdir(generatedPdfDir, { recursive: true }),
+      fs.mkdir(fileTargets.excel.directoryPath, { recursive: true }),
+      fs.mkdir(fileTargets.pdf.directoryPath, { recursive: true }),
     ])
 
-    const excelFilename = `${invoicePayload.invoiceKey}.xlsx`
-    const pdfFilename = `${invoicePayload.invoiceKey}.pdf`
-    const excelOutputPath = path.join(generatedExcelDir, excelFilename)
-    const pdfOutputPath = path.join(generatedPdfDir, pdfFilename)
-
-    await generateExcelInvoice(invoicePayload, excelOutputPath)
-    await generatePdfInvoice(invoicePayload, pdfOutputPath)
+    await generateExcelInvoice(invoicePayload, fileTargets.excel.absolutePath)
+    await generatePdfInvoice(invoicePayload, fileTargets.pdf.absolutePath)
     await saveInvoiceHistory(invoicePayload)
 
     res.json({
       invoice: invoicePayload,
       files: {
-        excel: `/downloads/excel/${excelFilename}`,
-        pdf: `/downloads/pdf/${pdfFilename}`,
+        excel: `/downloads/excel/${fileTargets.excel.relativeUrlPath}`,
+        pdf: `/downloads/pdf/${fileTargets.pdf.relativeUrlPath}`,
       },
     })
   } catch (error) {

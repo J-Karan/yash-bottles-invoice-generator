@@ -719,6 +719,40 @@ function App() {
     }
   }
 
+  async function handleDeleteInvoice(invoice) {
+    const confirmed = window.confirm(`Delete invoice ${invoice.invoiceNumber}? This will remove its history and generated files.`)
+    if (!confirmed) {
+      return
+    }
+
+    setHistoryActionBusyKey(invoice.invoiceKey)
+    setHistoryError('')
+
+    try {
+      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete invoice.')
+      }
+
+      if (editingInvoice?.invoiceKey === invoice.invoiceKey) {
+        resetInvoiceWorkspace()
+      }
+      if (result?.invoice?.invoiceKey === invoice.invoiceKey) {
+        setResult(null)
+      }
+
+      await refreshHistory()
+      await refreshEwayReadiness()
+    } catch (deleteError) {
+      setHistoryError(deleteError.message)
+    } finally {
+      setHistoryActionBusyKey('')
+    }
+  }
+
   function updateInvoiceField(event) {
     const { name, value } = event.target
     if (name === 'buyerCode') {
@@ -1432,6 +1466,14 @@ function App() {
                             >
                               {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
                             </button>
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              disabled={historyActionBusyKey === invoice.invoiceKey}
+                            >
+                              {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
+                            </button>
                             {invoice.excelAvailable ? (
                               <a href={invoice.files.excel} target="_blank" rel="noreferrer">
                                 Excel
@@ -1502,6 +1544,14 @@ function App() {
                         disabled={historyActionBusyKey === invoice.invoiceKey}
                       >
                         {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
+                      </button>
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => handleDeleteInvoice(invoice)}
+                        disabled={historyActionBusyKey === invoice.invoiceKey}
+                      >
+                        {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
                       </button>
                       {invoice.excelAvailable ? (
                         <a href={invoice.files.excel} target="_blank" rel="noreferrer">

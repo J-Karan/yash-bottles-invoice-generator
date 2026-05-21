@@ -119,13 +119,18 @@ If it does not open on another device:
 
 Generated output is now split for clarity:
 
-- Excel: `generated/excel/`
-- PDF: `generated/pdf/`
+- Excel: `generated/excel/<financial-year>/<mm-MonthName>/`
+- PDF: `generated/pdf/<financial-year>/<mm-MonthName>/`
 
 API download links now return:
 
-- `/downloads/excel/<invoice>.xlsx`
-- `/downloads/pdf/<invoice>.pdf`
+- `/downloads/excel/<financial-year>/<mm-MonthName>/<invoice>.xlsx`
+- `/downloads/pdf/<financial-year>/<mm-MonthName>/<invoice>.pdf`
+
+Example:
+
+- `/downloads/excel/2026-27/04-April/001-2026-27.xlsx`
+- `/downloads/pdf/2026-27/04-April/001-2026-27.pdf`
 
 The frontend now includes an **Invoice History** tab to review previously generated invoices
 and open available Excel/PDF files.
@@ -149,6 +154,13 @@ Special Ship-To options and E-way distance defaults are seeded into SQLite on fi
 - `eway_ambiguous_buyer_distances`
 
 After seeding, update these tables instead of editing JavaScript constants.
+
+## Financial-Year Invoice Numbering
+
+Invoice numbering is financial-year scoped (`NNN/YYYY-YY`) and starts from `001` for each year.
+
+If this app opens an older database where numbering was not reset by financial year, it runs a one-time
+normalization that resequences invoices per year and regenerates invoice files with updated keys.
 
 ## GitHub Hosting Readiness
 

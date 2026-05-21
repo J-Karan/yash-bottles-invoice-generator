@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import fs from 'fs/promises'
+import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import { parse } from 'csv-parse/sync'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
@@ -162,6 +163,10 @@ async function initializeDatabase() {
   migrateInvoicePaymentTracking()
   await seedDatabaseFromCsv()
   seedOperationalDefaults()
+  await normalizeInvoiceNumberingByFinancialYear()
+  await normalizeGeneratedFileLayout()
+  await normalizeGeneratedFileLayoutFullMonth()
+  await normalizeGeneratedFileLayoutNumberedMonth()
 }
 
 function migrateInvoicePaymentTracking() {
@@ -387,6 +392,395 @@ function seedOperationalDefaults() {
   seedDefaults()
 }
 
+async function normalizeInvoiceNumberingByFinancialYear() {
+  const migrationKey = 'invoice_financial_year_resequence_v1'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(migrationKey)
+  if (existing) {
+    return
+  }
+
+  const invoiceRows = db.prepare(`
+    SELECT invoice_number, invoice_key, invoice_date, created_at
+    FROM invoices
+    ORDER BY invoice_date ASC, created_at ASC, invoice_number ASC
+  `).all()
+
+  const serialByFinancialYear = new Map()
+  const renamePlan = []
+
+  invoiceRows.forEach((row, index) => {
+    const financialYear = resolveInvoiceFinancialYear(row)
+    const nextSerial = (serialByFinancialYear.get(financialYear) || 0) + 1
+    serialByFinancialYear.set(financialYear, nextSerial)
+
+    const newInvoiceNumber = `${String(nextSerial).padStart(3, '0')}/${financialYear}`
+    const newInvoiceKey = newInvoiceNumber.replace('/', '-')
+    if (newInvoiceNumber === row.invoice_number && newInvoiceKey === row.invoice_key) {
+      return
+    }
+
+    renamePlan.push({
+      oldInvoiceNumber: row.invoice_number,
+      oldInvoiceKey: row.invoice_key,
+      oldInvoiceDate: row.invoice_date,
+      newInvoiceNumber,
+      newInvoiceKey,
+      tempInvoiceNumber: `TMP-${index + 1}-${Date.now()}`,
+      tempInvoiceKey: `tmp-${index + 1}-${Date.now()}`,
+    })
+  })
+
+  const applyMigration = withTransaction((changes) => {
+    changes.forEach((change) => {
+      db.prepare('UPDATE invoice_lines SET invoice_number = ? WHERE invoice_number = ?')
+        .run(change.tempInvoiceNumber, change.oldInvoiceNumber)
+      db.prepare('UPDATE invoices SET invoice_number = ?, invoice_key = ? WHERE invoice_number = ?')
+        .run(change.tempInvoiceNumber, change.tempInvoiceKey, change.oldInvoiceNumber)
+      db.prepare('UPDATE eway_invoice_distances SET invoice_key = ?, updated_at = CURRENT_TIMESTAMP WHERE invoice_key = ?')
+        .run(change.tempInvoiceKey, change.oldInvoiceKey)
+    })
+
+    changes.forEach((change) => {
+      db.prepare('UPDATE invoice_lines SET invoice_number = ? WHERE invoice_number = ?')
+        .run(change.newInvoiceNumber, change.tempInvoiceNumber)
+      db.prepare('UPDATE invoices SET invoice_number = ?, invoice_key = ? WHERE invoice_number = ?')
+        .run(change.newInvoiceNumber, change.newInvoiceKey, change.tempInvoiceNumber)
+      db.prepare('DELETE FROM eway_invoice_distances WHERE invoice_key = ?').run(change.newInvoiceKey)
+      db.prepare('UPDATE eway_invoice_distances SET invoice_key = ?, updated_at = CURRENT_TIMESTAMP WHERE invoice_key = ?')
+        .run(change.newInvoiceKey, change.tempInvoiceKey)
+    })
+
+    rebuildInvoiceSequences()
+    db.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).run(migrationKey, String(changes.length))
+  })
+
+  db.exec('PRAGMA foreign_keys = OFF')
+  try {
+    applyMigration(renamePlan)
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON')
+  }
+
+  for (const change of renamePlan) {
+    await regenerateInvoiceArtifacts(change.newInvoiceNumber, change.newInvoiceKey)
+    await deleteInvoiceArtifacts(change.oldInvoiceDate, change.oldInvoiceKey)
+  }
+}
+
+async function normalizeGeneratedFileLayout() {
+  const migrationKey = 'invoice_generated_file_layout_v1'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(migrationKey)
+  if (existing) {
+    return
+  }
+
+  const invoices = db.prepare(`
+    SELECT invoice_number, invoice_key, invoice_date
+    FROM invoices
+    ORDER BY invoice_date ASC, created_at ASC, invoice_number ASC
+  `).all()
+
+  let regeneratedCount = 0
+
+  for (const invoice of invoices) {
+    const targets = buildInvoiceFileTargets(invoice.invoice_date, invoice.invoice_key)
+    const [excelExists, pdfExists] = await Promise.all([
+      fileExists(targets.excel.absolutePath),
+      fileExists(targets.pdf.absolutePath),
+    ])
+
+    if (!excelExists || !pdfExists) {
+      await regenerateInvoiceArtifacts(invoice.invoice_number, invoice.invoice_key)
+      regeneratedCount += 1
+    }
+
+    await Promise.all([
+      deleteGeneratedFile(generatedExcelDir, `${invoice.invoice_key}.xlsx`),
+      deleteGeneratedFile(generatedPdfDir, `${invoice.invoice_key}.pdf`),
+    ])
+  }
+
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).run(migrationKey, String(regeneratedCount))
+}
+
+async function normalizeGeneratedFileLayoutFullMonth() {
+  const migrationKey = 'invoice_generated_file_layout_v3_full_month_cleanup'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(migrationKey)
+  if (existing) {
+    return
+  }
+
+  const invoices = db.prepare(`
+    SELECT invoice_number, invoice_key, invoice_date
+    FROM invoices
+    ORDER BY invoice_date ASC, created_at ASC, invoice_number ASC
+  `).all()
+
+  let regeneratedCount = 0
+  for (const invoice of invoices) {
+    const targets = buildInvoiceFileTargets(invoice.invoice_date, invoice.invoice_key)
+    const [excelExists, pdfExists] = await Promise.all([
+      fileExists(targets.excel.absolutePath),
+      fileExists(targets.pdf.absolutePath),
+    ])
+
+    if (!excelExists || !pdfExists) {
+      await regenerateInvoiceArtifacts(invoice.invoice_number, invoice.invoice_key)
+      regeneratedCount += 1
+    }
+
+    await deleteInvoiceArtifactsLegacyNumericMonth(invoice.invoice_date, invoice.invoice_key)
+  }
+
+  await Promise.all([
+    removeLegacyNumericMonthDirectories(generatedExcelDir),
+    removeLegacyNumericMonthDirectories(generatedPdfDir),
+  ])
+
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).run(migrationKey, String(regeneratedCount))
+}
+
+async function normalizeGeneratedFileLayoutNumberedMonth() {
+  const migrationKey = 'invoice_generated_file_layout_v4_numbered_month'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(migrationKey)
+  if (existing) {
+    return
+  }
+
+  const invoices = db.prepare(`
+    SELECT invoice_number, invoice_key, invoice_date
+    FROM invoices
+    ORDER BY invoice_date ASC, created_at ASC, invoice_number ASC
+  `).all()
+
+  let regeneratedCount = 0
+  for (const invoice of invoices) {
+    const targets = buildInvoiceFileTargets(invoice.invoice_date, invoice.invoice_key)
+    const [excelExists, pdfExists] = await Promise.all([
+      fileExists(targets.excel.absolutePath),
+      fileExists(targets.pdf.absolutePath),
+    ])
+
+    if (!excelExists || !pdfExists) {
+      await regenerateInvoiceArtifacts(invoice.invoice_number, invoice.invoice_key)
+      regeneratedCount += 1
+    }
+
+    await deleteInvoiceArtifactsLegacyFullMonth(invoice.invoice_date, invoice.invoice_key)
+  }
+
+  await Promise.all([
+    removeLegacyFullMonthDirectories(generatedExcelDir),
+    removeLegacyFullMonthDirectories(generatedPdfDir),
+  ])
+
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).run(migrationKey, String(regeneratedCount))
+}
+
+async function removeLegacyNumericMonthDirectories(baseDir) {
+  const years = await fs.readdir(baseDir, { withFileTypes: true })
+  for (const yearEntry of years) {
+    if (!yearEntry.isDirectory()) {
+      continue
+    }
+
+    const yearPath = path.join(baseDir, yearEntry.name)
+    const months = await fs.readdir(yearPath, { withFileTypes: true })
+    for (const monthEntry of months) {
+      if (!monthEntry.isDirectory()) {
+        continue
+      }
+      if (!/^\d{4}-\d{2}$/.test(monthEntry.name)) {
+        continue
+      }
+
+      await fs.rm(path.join(yearPath, monthEntry.name), { recursive: true, force: true })
+    }
+  }
+}
+
+async function removeLegacyFullMonthDirectories(baseDir) {
+  const years = await fs.readdir(baseDir, { withFileTypes: true })
+  for (const yearEntry of years) {
+    if (!yearEntry.isDirectory()) {
+      continue
+    }
+
+    const yearPath = path.join(baseDir, yearEntry.name)
+    const months = await fs.readdir(yearPath, { withFileTypes: true })
+    for (const monthEntry of months) {
+      if (!monthEntry.isDirectory()) {
+        continue
+      }
+      if (!/^[A-Za-z]+$/.test(monthEntry.name)) {
+        continue
+      }
+
+      await fs.rm(path.join(yearPath, monthEntry.name), { recursive: true, force: true })
+    }
+  }
+}
+
+function resolveInvoiceFinancialYear(row) {
+  const invoiceDate = String(row.invoice_date || '').trim()
+  if (invoiceDate) {
+    try {
+      return deriveFinancialYearSuffix(invoiceDate)
+    } catch {
+      // Fall through to invoice number parsing for legacy rows.
+    }
+  }
+
+  const parsed = parseInvoiceNumber(row.invoice_number)
+  if (parsed?.financialYear) {
+    return parsed.financialYear
+  }
+
+  throw new Error(`Unable to determine financial year for invoice ${row.invoice_number}.`)
+}
+
+function rebuildInvoiceSequences() {
+  const sequenceByYear = new Map()
+  const invoices = db.prepare('SELECT invoice_number FROM invoices').all()
+
+  invoices.forEach((invoice) => {
+    const parsed = parseInvoiceNumber(invoice.invoice_number)
+    if (!parsed) {
+      return
+    }
+    const current = sequenceByYear.get(parsed.financialYear) || 0
+    sequenceByYear.set(parsed.financialYear, Math.max(current, parsed.serial))
+  })
+
+  db.prepare('DELETE FROM invoice_sequences').run()
+  const insertSequence = db.prepare(`
+    INSERT INTO invoice_sequences (financial_year, next_serial)
+    VALUES (?, ?)
+  `)
+  for (const [financialYear, maxSerial] of [...sequenceByYear.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    insertSequence.run(financialYear, maxSerial + 1)
+  }
+}
+
+function buildInvoiceArtifactPayload(invoiceNumber) {
+  const invoice = db.prepare(`
+    SELECT
+      i.invoice_number,
+      i.invoice_key,
+      i.invoice_date,
+      i.vehicle_number,
+      i.quantity,
+      i.amount,
+      i.non_taxable_value,
+      i.taxable_value,
+      i.cgst,
+      i.sgst,
+      i.taxable_after_gst,
+      i.total,
+      i.buyer_code,
+      i.buyer_name_snapshot,
+      i.buyer_gstin_snapshot,
+      i.ship_to_name_snapshot,
+      i.ship_to_address_snapshot,
+      b.address_line1,
+      b.address_line2,
+      b.address_line3,
+      b.city_state_pin
+    FROM invoices i
+    LEFT JOIN buyers b ON b.buyer_code = i.buyer_code
+    WHERE i.invoice_number = ?
+  `).get(invoiceNumber)
+
+  if (!invoice) {
+    throw new Error(`Invoice was not found for artifact regeneration: ${invoiceNumber}`)
+  }
+
+  const lines = db.prepare(`
+    SELECT
+      item_code,
+      item_description_snapshot,
+      hsn_code_snapshot,
+      bags,
+      bottles_per_bag,
+      quantity,
+      gross_rate,
+      amount,
+      non_taxable_rate,
+      non_taxable_value,
+      taxable_rate,
+      taxable_value
+    FROM invoice_lines
+    WHERE invoice_number = ?
+    ORDER BY line_index ASC, id ASC
+  `).all(invoiceNumber)
+
+  return {
+    invoiceNumber: invoice.invoice_number,
+    invoiceKey: invoice.invoice_key,
+    invoiceDate: invoice.invoice_date,
+    vehicleNumber: invoice.vehicle_number,
+    quantity: Number(invoice.quantity || 0),
+    amount: Number(invoice.amount || 0),
+    nonTaxableValue: Number(invoice.non_taxable_value || 0),
+    taxableValue: Number(invoice.taxable_value || 0),
+    cgst: Number(invoice.cgst || 0),
+    sgst: Number(invoice.sgst || 0),
+    taxableAfterGst: Number(invoice.taxable_after_gst || 0),
+    total: Number(invoice.total || 0),
+    buyer: {
+      Buyer_Code: invoice.buyer_code,
+      Buyer_Name: invoice.buyer_name_snapshot,
+      Address_Line1: invoice.address_line1 || '',
+      Address_Line2: invoice.address_line2 || '',
+      Address_Line3: invoice.address_line3 || '',
+      City_State_Pin: invoice.city_state_pin || '',
+      GSTIN: invoice.buyer_gstin_snapshot || '',
+      Ship_To_Name: invoice.ship_to_name_snapshot || '',
+      Ship_To_Address: invoice.ship_to_address_snapshot || '',
+    },
+    lines: lines.map((line) => ({
+      item: {
+        Item_Code: line.item_code,
+        Description: line.item_description_snapshot,
+        HSN_Code: line.hsn_code_snapshot || '',
+      },
+      bags: Number(line.bags || 0),
+      bottlesPerBag: Number(line.bottles_per_bag || 0),
+      quantity: Number(line.quantity || 0),
+      grossRate: Number(line.gross_rate || 0),
+      amount: Number(line.amount || 0),
+      nonTaxableRate: Number(line.non_taxable_rate || 0),
+      nonTaxableValue: Number(line.non_taxable_value || 0),
+      taxableRate: Number(line.taxable_rate || 0),
+      taxableValue: Number(line.taxable_value || 0),
+    })),
+  }
+}
+
+async function regenerateInvoiceArtifacts(invoiceNumber, invoiceKey) {
+  const invoice = buildInvoiceArtifactPayload(invoiceNumber)
+  const targets = buildInvoiceFileTargets(invoice.invoiceDate, invoiceKey)
+
+  await Promise.all([
+    fs.mkdir(targets.excel.directoryPath, { recursive: true }),
+    fs.mkdir(targets.pdf.directoryPath, { recursive: true }),
+  ])
+  await generateExcelInvoice(invoice, targets.excel.absolutePath)
+  await generatePdfInvoice(invoice, targets.pdf.absolutePath)
+}
+
 async function readBuyers() {
   const rows = db.prepare(`
     SELECT
@@ -485,7 +879,9 @@ async function readInvoiceDraft(invoiceKey) {
 
   const key = String(invoiceKey || '').trim()
   if (!key) {
-    throw new Error('Invoice key is required.')
+    const error = new Error('Invoice key is required.')
+    error.statusCode = 400
+    throw error
   }
 
   const invoice = db.prepare(`
@@ -502,7 +898,9 @@ async function readInvoiceDraft(invoiceKey) {
   `).get(key)
 
   if (!invoice) {
-    throw new Error('Invoice was not found.')
+    const error = new Error('Invoice was not found.')
+    error.statusCode = 404
+    throw error
   }
 
   const lines = db.prepare(`
@@ -545,6 +943,63 @@ async function readInvoiceDraft(invoiceKey) {
       bags: String(line.bags || 0),
     })),
   }
+}
+
+async function deleteInvoiceHistory(invoiceKey) {
+  await dbReady
+
+  const key = String(invoiceKey || '').trim()
+  if (!key) {
+    const error = new Error('Invoice key is required.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const invoice = db.prepare(`
+    SELECT invoice_number, invoice_key, invoice_date
+    FROM invoices
+    WHERE invoice_key = ?
+  `).get(key)
+
+  if (!invoice) {
+    const error = new Error('Invoice was not found.')
+    error.statusCode = 404
+    throw error
+  }
+
+  const parsed = parseInvoiceNumber(invoice.invoice_number)
+  if (!parsed) {
+    const error = new Error('Invoice number format is invalid.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const latestSerialRow = db.prepare(`
+    SELECT MAX(CAST(substr(invoice_number, 1, instr(invoice_number, '/') - 1) AS INTEGER)) AS latest_serial
+    FROM invoices
+    WHERE invoice_number LIKE '%' || '/' || ?
+  `).get(parsed.financialYear)
+  const latestSerial = Number(latestSerialRow?.latest_serial || 0)
+  if (parsed.serial !== latestSerial) {
+    const error = new Error('To keep numbering gapless, you can delete only the latest invoice.')
+    error.statusCode = 409
+    throw error
+  }
+
+  const removeInvoice = withTransaction((payload, invoiceMeta) => {
+    db.prepare('DELETE FROM eway_invoice_distances WHERE invoice_key = ?').run(payload.invoice_key)
+    db.prepare('DELETE FROM invoices WHERE invoice_number = ?').run(payload.invoice_number)
+    db.prepare(`
+      UPDATE invoice_sequences
+      SET next_serial = ?
+      WHERE financial_year = ?
+    `).run(invoiceMeta.serial, invoiceMeta.financialYear)
+  })
+  removeInvoice(invoice, parsed)
+
+  await deleteInvoiceArtifacts(invoice.invoice_date, invoice.invoice_key)
+
+  return { deleted: true, invoiceKey: invoice.invoice_key }
 }
 
 async function readPaymentSummary() {
@@ -1113,6 +1568,159 @@ function withTransaction(callback) {
       throw error
     }
   }
+}
+
+function parseInvoiceNumber(invoiceNumber) {
+  const match = String(invoiceNumber || '').match(/^(\d+)\/(\d{4}-\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  return {
+    serial: Number(match[1]),
+    financialYear: match[2],
+  }
+}
+
+async function deleteGeneratedFile(directoryPath, filename) {
+  const filePath = path.join(directoryPath, filename)
+  try {
+    await fs.unlink(filePath)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error
+    }
+  }
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function deleteInvoiceArtifacts(invoiceDate, invoiceKey) {
+  const targets = buildInvoiceFileTargets(invoiceDate, invoiceKey)
+  await Promise.all([
+    deleteGeneratedFile(targets.excel.directoryPath, targets.excel.filename),
+    deleteGeneratedFile(targets.pdf.directoryPath, targets.pdf.filename),
+    deleteGeneratedFile(generatedExcelDir, `${invoiceKey}.xlsx`),
+    deleteGeneratedFile(generatedPdfDir, `${invoiceKey}.pdf`),
+  ])
+}
+
+async function deleteInvoiceArtifactsLegacyNumericMonth(invoiceDate, invoiceKey) {
+  const financialYear = resolveFinancialYearForStorage(invoiceDate, invoiceKey)
+  const numericMonth = resolveMonthBucketNumeric(invoiceDate)
+  await Promise.all([
+    deleteGeneratedFile(path.join(generatedExcelDir, financialYear, numericMonth), `${invoiceKey}.xlsx`),
+    deleteGeneratedFile(path.join(generatedPdfDir, financialYear, numericMonth), `${invoiceKey}.pdf`),
+  ])
+}
+
+async function deleteInvoiceArtifactsLegacyFullMonth(invoiceDate, invoiceKey) {
+  const financialYear = resolveFinancialYearForStorage(invoiceDate, invoiceKey)
+  const monthName = resolveMonthBucketFullName(invoiceDate)
+  await Promise.all([
+    deleteGeneratedFile(path.join(generatedExcelDir, financialYear, monthName), `${invoiceKey}.xlsx`),
+    deleteGeneratedFile(path.join(generatedPdfDir, financialYear, monthName), `${invoiceKey}.pdf`),
+  ])
+}
+
+function buildInvoiceFileTargets(invoiceDate, invoiceKey) {
+  const financialYear = resolveFinancialYearForStorage(invoiceDate, invoiceKey)
+  const monthBucket = resolveMonthBucket(invoiceDate)
+  const relativeDir = `${financialYear}/${monthBucket}`
+  const excelFilename = `${invoiceKey}.xlsx`
+  const pdfFilename = `${invoiceKey}.pdf`
+
+  return {
+    excel: {
+      filename: excelFilename,
+      directoryPath: path.join(generatedExcelDir, financialYear, monthBucket),
+      absolutePath: path.join(generatedExcelDir, financialYear, monthBucket, excelFilename),
+      relativeUrlPath: `${relativeDir}/${excelFilename}`,
+    },
+    pdf: {
+      filename: pdfFilename,
+      directoryPath: path.join(generatedPdfDir, financialYear, monthBucket),
+      absolutePath: path.join(generatedPdfDir, financialYear, monthBucket, pdfFilename),
+      relativeUrlPath: `${relativeDir}/${pdfFilename}`,
+    },
+  }
+}
+
+function resolveFinancialYearForStorage(invoiceDate, invoiceKey) {
+  try {
+    return deriveFinancialYearSuffix(invoiceDate)
+  } catch {
+    const parsed = parseInvoiceNumberFromKey(invoiceKey)
+    if (parsed?.financialYear) {
+      return parsed.financialYear
+    }
+    throw new Error(`Invoice date is invalid for file storage: ${invoiceDate}`)
+  }
+}
+
+function parseInvoiceNumberFromKey(invoiceKey) {
+  const match = String(invoiceKey || '').match(/^(\d+)-(\d{4}-\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  return {
+    serial: Number(match[1]),
+    financialYear: match[2],
+  }
+}
+
+function resolveMonthBucket(invoiceDate) {
+  const monthNumber = resolveMonthNumber(invoiceDate)
+  const monthName = resolveMonthBucketFullName(invoiceDate)
+  return `${monthNumber}-${monthName}`
+}
+
+function resolveMonthBucketFullName(invoiceDate) {
+  const source = String(invoiceDate || '').trim()
+  const parsed = new Date(source)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invoice date is invalid for file storage: ${invoiceDate}`)
+  }
+
+  return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(parsed)
+}
+
+function resolveMonthNumber(invoiceDate) {
+  const source = String(invoiceDate || '').trim()
+  const match = source.match(/^\d{4}-(\d{2})-\d{2}$/)
+  if (match) {
+    return match[1]
+  }
+
+  const parsed = new Date(source)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invoice date is invalid for file storage: ${invoiceDate}`)
+  }
+
+  return String(parsed.getMonth() + 1).padStart(2, '0')
+}
+
+function resolveMonthBucketNumeric(invoiceDate) {
+  const source = String(invoiceDate || '').trim()
+  const match = source.match(/^(\d{4})-(\d{2})-\d{2}$/)
+  if (match) {
+    return `${match[1]}-${match[2]}`
+  }
+
+  const parsed = new Date(source)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invoice date is invalid for file storage: ${invoiceDate}`)
+  }
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
 }
 
 function normalizeBuyerInput(input, options = {}) {
@@ -1800,6 +2408,7 @@ export {
   readItems,
   readInvoiceHistory,
   readInvoiceDraft,
+  deleteInvoiceHistory,
   readPaymentSummary,
   markUnpaidInvoicesPaid,
   createBuyer,
@@ -1812,4 +2421,5 @@ export {
   saveInvoiceHistory,
   generateExcelInvoice,
   generatePdfInvoice,
+  buildInvoiceFileTargets,
 }
