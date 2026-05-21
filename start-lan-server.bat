@@ -93,6 +93,19 @@ pause >nul
 exit /b 1
 
 :check_required_secrets
+if "%APP_USERNAME%"=="" (
+  set "APP_USERNAME=jkaran"
+)
+
+if "%APP_PASSWORD%"=="" (
+  echo APP_PASSWORD is required for invoice workspace login.
+  set /p "APP_PASSWORD=Enter app login password for this server session: "
+  if "!APP_PASSWORD!"=="" (
+    echo APP_PASSWORD cannot be empty.
+    exit /b 1
+  )
+)
+
 if "%ADMIN_PASSWORD%"=="" (
   echo ADMIN_PASSWORD is required for admin login.
   set /p "ADMIN_PASSWORD=Enter admin password for this server session: "

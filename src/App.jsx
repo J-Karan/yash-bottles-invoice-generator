@@ -193,7 +193,18 @@ function getStoredAdminToken() {
   return localStorage.getItem('invoiceAdminToken') || ''
 }
 
+function getStoredAppToken() {
+  return localStorage.getItem('invoiceAppToken') || ''
+}
+
 function App() {
+  const [appToken, setAppToken] = useState(getStoredAppToken)
+  const [appSessionChecking, setAppSessionChecking] = useState(Boolean(getStoredAppToken()))
+  const [loginUsername, setLoginUsername] = useState('jkaran')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [activeView, setActiveView] = useState('invoice')
   const [buyers, setBuyers] = useState([])
   const [items, setItems] = useState([])
@@ -239,10 +250,14 @@ function App() {
   const [ewayDistanceOverrides, setEwayDistanceOverrides] = useState({})
 
   useEffect(() => {
-    refreshMasters()
-    refreshHistory()
-    refreshEwayReadiness()
-  }, [])
+    if (!appToken) {
+      setAppSessionChecking(false)
+      setLoading(false)
+      return
+    }
+
+    verifyAppSession()
+  }, [appToken])
 
   useEffect(() => {
     if (!adminToken) {
@@ -376,10 +391,138 @@ function App() {
     [ewayReadiness],
   )
 
+  async function verifyAppSession() {
+    setAppSessionChecking(true)
+    try {
+      const response = await appFetch('/api/auth/session')
+      if (!response.ok) {
+        throw new Error('Session expired.')
+      }
+
+      await Promise.all([refreshMasters(), refreshHistory(), refreshEwayReadiness()])
+      setLoginError('')
+    } catch {
+      clearAppSession()
+    } finally {
+      setAppSessionChecking(false)
+    }
+  }
+
+  async function handleAppLogin(event) {
+    event.preventDefault()
+    setLoginBusy(true)
+    setLoginError('')
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: loginUsername,
+          password: loginPassword,
+        }),
+      })
+      const data = await readResponseJson(response, 'Login failed. Check that the backend server is running with required environment variables.')
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed.')
+      }
+
+      localStorage.setItem('invoiceAppToken', data.token)
+      setAppToken(data.token)
+      setLoginPassword('')
+      setShowLoginPassword(false)
+      setLoading(true)
+    } catch (error) {
+      setLoginError(error.message)
+    } finally {
+      setLoginBusy(false)
+    }
+  }
+
+  async function handleAppLogout() {
+    try {
+      await appFetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // The local session is authoritative for UI state.
+    } finally {
+      clearAppSession()
+    }
+  }
+
+  function clearAppSession() {
+    localStorage.removeItem('invoiceAppToken')
+    localStorage.removeItem('invoiceAdminToken')
+    setAppToken('')
+    setAdminToken('')
+    setBuyers([])
+    setItems([])
+    setInvoiceHistory([])
+    setEwayReadiness([])
+    setResult(null)
+    setEditingInvoice(null)
+    setLoginPassword('')
+    setLoading(false)
+  }
+
+  async function appFetch(url, options = {}) {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'X-Invoice-Session': appToken,
+      },
+    })
+  }
+
+  async function readResponseJson(response, fallbackMessage) {
+    const text = await response.text()
+    if (!text) {
+      if (response.ok) {
+        return {}
+      }
+      throw new Error(fallbackMessage || `Request failed with status ${response.status}.`)
+    }
+
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw new Error(fallbackMessage || 'Server returned an invalid response.')
+    }
+  }
+
+  async function downloadProtectedFile(url, filename) {
+    try {
+      const response = await appFetch(url)
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          const data = await readResponseJson(response)
+          throw new Error(data.error || 'Download failed.')
+        }
+        throw new Error('Download failed.')
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename || url.split('/').pop() || 'download'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (downloadError) {
+      setHistoryError(downloadError.message)
+      setError(downloadError.message)
+    }
+  }
+
   async function refreshMasters() {
     try {
-      const response = await fetch('/api/masters')
-      const data = await response.json()
+      const response = await appFetch('/api/masters')
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load master data.')
       }
@@ -400,8 +543,8 @@ function App() {
     setHistoryError('')
 
     try {
-      const response = await fetch('/api/invoices/history?limit=300')
-      const data = await response.json()
+      const response = await appFetch('/api/invoices/history?limit=300')
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load invoice history.')
       }
@@ -420,8 +563,8 @@ function App() {
     setEwayError('')
 
     try {
-      const response = await fetch('/api/eway/readiness')
-      const data = await response.json()
+      const response = await appFetch('/api/eway/readiness')
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load E-way readiness.')
       }
@@ -497,9 +640,13 @@ function App() {
 
     if (state.canDownload) {
       return (
-        <a href={buildEwayJsonUrl(state.readiness)} target="_blank" rel="noreferrer">
+        <button
+          className="text-button"
+          type="button"
+          onClick={() => downloadProtectedFile(buildEwayJsonUrl(state.readiness), `${state.readiness.invoiceKey}-eway.json`)}
+        >
           E-way JSON
-        </a>
+        </button>
       )
     }
 
@@ -533,14 +680,14 @@ function App() {
     setPaymentStatus('')
 
     try {
-      const response = await fetch('/api/invoices/mark-paid', {
+      const response = await appFetch('/api/invoices/mark-paid', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ password: paymentPasswordInput }),
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to mark invoices paid.')
       }
@@ -558,7 +705,7 @@ function App() {
 
   async function verifyAdminSession() {
     try {
-      const response = await fetch('/api/admin/session', {
+      const response = await appFetch('/api/admin/session', {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },
@@ -577,6 +724,7 @@ function App() {
       ...options,
       headers: {
         ...(options.headers || {}),
+        'X-Invoice-Session': appToken,
         Authorization: `Bearer ${adminToken}`,
       },
     })
@@ -600,14 +748,14 @@ function App() {
     setAuthError('')
 
     try {
-      const response = await fetch('/api/admin/login', {
+      const response = await appFetch('/api/admin/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ password: adminPasswordInput }),
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to log in.')
       }
@@ -625,7 +773,7 @@ function App() {
 
   async function handleAdminLogout() {
     try {
-      await fetch('/api/admin/logout', {
+      await appFetch('/api/admin/logout', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${adminToken}`,
@@ -650,7 +798,7 @@ function App() {
     const isEditingInvoice = Boolean(editingInvoice?.invoiceKey)
 
     try {
-      const response = await fetch('/api/invoices/generate', {
+      const response = await appFetch('/api/invoices/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -660,7 +808,7 @@ function App() {
           editInvoiceKey: editingInvoice?.invoiceKey || '',
         }),
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate invoice.')
       }
@@ -685,8 +833,8 @@ function App() {
     setHistoryError('')
 
     try {
-      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`)
-      const data = await response.json()
+      const response = await appFetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`)
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load invoice.')
       }
@@ -729,10 +877,10 @@ function App() {
     setHistoryError('')
 
     try {
-      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`, {
+      const response = await appFetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`, {
         method: 'DELETE',
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete invoice.')
       }
@@ -836,7 +984,7 @@ function App() {
         },
         body: JSON.stringify(buyerForm),
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to save buyer.')
       }
@@ -881,7 +1029,7 @@ function App() {
         },
         body: JSON.stringify(itemForm),
       })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to save item.')
       }
@@ -912,7 +1060,7 @@ function App() {
 
     try {
       const response = await adminFetch(`/api/buyers/${editingBuyerCode}`, { method: 'DELETE' })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete buyer.')
       }
@@ -942,7 +1090,7 @@ function App() {
 
     try {
       const response = await adminFetch(`/api/items/${editingItemCode}`, { method: 'DELETE' })
-      const data = await response.json()
+      const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete item.')
       }
@@ -963,6 +1111,86 @@ function App() {
         pdfAvailable: Boolean(result.files?.pdf),
       })
     : { canDownload: false, reason: 'PDF not generated yet', readiness: null }
+
+  if (appSessionChecking) {
+    return (
+      <main className="app-shell app-shell-loading">
+        <p className="status-card">Checking secure session...</p>
+      </main>
+    )
+  }
+
+  if (!appToken) {
+    return (
+      <main className="login-shell">
+        <section className="login-hero">
+          <div className="login-copy">
+            <p className="eyebrow">Yash Bottles</p>
+            <h1>Invoice workspace access</h1>
+            <p>
+              Sign in to generate invoices, review history, manage master records, and download protected invoice files.
+            </p>
+            <div className="login-metrics" aria-hidden="true">
+              <div>
+                <span>Storage</span>
+                <strong>SQLite</strong>
+              </div>
+              <div>
+                <span>Output</span>
+                <strong>Excel + PDF</strong>
+              </div>
+              <div>
+                <span>E-way</span>
+                <strong>JSON</strong>
+              </div>
+            </div>
+          </div>
+
+          <form className="login-panel" onSubmit={handleAppLogin}>
+            <div className="panel-header">
+              <h2>Log In</h2>
+              <p>Use your invoice workspace credentials.</p>
+            </div>
+
+            <label>
+              <span>Username</span>
+              <input
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                autoComplete="username"
+                autoFocus
+              />
+            </label>
+
+            <label>
+              <span>Password</span>
+              <div className="login-password-row">
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  autoComplete="current-password"
+                />
+                <button
+                  className="text-button login-password-toggle"
+                  type="button"
+                  onClick={() => setShowLoginPassword((current) => !current)}
+                >
+                  {showLoginPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </label>
+
+            {loginError ? <p className="error-banner">{loginError}</p> : null}
+
+            <button className="primary-button login-submit" type="submit" disabled={loginBusy}>
+              {loginBusy ? 'Signing in...' : 'Enter Workspace'}
+            </button>
+          </form>
+        </section>
+      </main>
+    )
+  }
 
   if (loading) {
     return (
@@ -1048,6 +1276,9 @@ function App() {
             Log Out Admin
           </button>
         ) : null}
+        <button className="view-chip" type="button" onClick={handleAppLogout}>
+          Log Out
+        </button>
       </section>
 
       {activeView === 'invoice' ? (
@@ -1325,16 +1556,30 @@ function App() {
                   <strong>{result.invoice.invoiceNumber}</strong>
                 </p>
                 <div className="download-actions">
-                  <a href={result.files.excel} target="_blank" rel="noreferrer">
+                  <button
+                    type="button"
+                    onClick={() => downloadProtectedFile(result.files.excel, `${result.invoice.invoiceKey}.xlsx`)}
+                  >
                     Download Excel
-                  </a>
-                  <a href={result.files.pdf} target="_blank" rel="noreferrer">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadProtectedFile(result.files.pdf, `${result.invoice.invoiceKey}.pdf`)}
+                  >
                     Download PDF
-                  </a>
+                  </button>
                   {generatedEwayState.canDownload ? (
-                    <a href={buildEwayJsonUrl(generatedEwayState.readiness)} target="_blank" rel="noreferrer">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadProtectedFile(
+                          buildEwayJsonUrl(generatedEwayState.readiness),
+                          `${generatedEwayState.readiness.invoiceKey}-eway.json`,
+                        )
+                      }
+                    >
                       Download E-way JSON
-                    </a>
+                    </button>
                   ) : (
                     <span className="download-disabled">E-way JSON: {generatedEwayState.reason}</span>
                   )}
@@ -1475,16 +1720,24 @@ function App() {
                               {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
                             </button>
                             {invoice.excelAvailable ? (
-                              <a href={invoice.files.excel} target="_blank" rel="noreferrer">
+                              <button
+                                className="text-button"
+                                type="button"
+                                onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
+                              >
                                 Excel
-                              </a>
+                              </button>
                             ) : (
                               <span className="history-file-missing">Excel missing</span>
                             )}
                             {invoice.pdfAvailable ? (
-                              <a href={invoice.files.pdf} target="_blank" rel="noreferrer">
+                              <button
+                                className="text-button"
+                                type="button"
+                                onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
+                              >
                                 PDF
-                              </a>
+                              </button>
                             ) : (
                               <span className="history-file-missing">PDF missing</span>
                             )}
@@ -1554,16 +1807,24 @@ function App() {
                         {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
                       </button>
                       {invoice.excelAvailable ? (
-                        <a href={invoice.files.excel} target="_blank" rel="noreferrer">
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
+                        >
                           Excel
-                        </a>
+                        </button>
                       ) : (
                         <span className="history-file-missing">Excel missing</span>
                       )}
                       {invoice.pdfAvailable ? (
-                        <a href={invoice.files.pdf} target="_blank" rel="noreferrer">
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
+                        >
                           PDF
-                        </a>
+                        </button>
                       ) : (
                         <span className="history-file-missing">PDF missing</span>
                       )}

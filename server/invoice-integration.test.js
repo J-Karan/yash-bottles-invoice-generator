@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 
 process.env.ADMIN_PASSWORD ||= 'test-admin-password'
+process.env.APP_PASSWORD ||= 'test-app-password'
 process.env.PAYMENT_PASSWORD ||= 'test-payment-password'
 
 let buildEwayBulkJson

@@ -36,6 +36,8 @@ npm install
 Run frontend + backend:
 
 ```powershell
+$env:APP_USERNAME="jkaran"
+$env:APP_PASSWORD="your-app-login-password"
 $env:ADMIN_PASSWORD="your-admin-password"
 $env:PAYMENT_PASSWORD="your-payment-password"
 npm run dev
@@ -64,6 +66,8 @@ npm run build
 Start server:
 
 ```powershell
+$env:APP_USERNAME="jkaran"
+$env:APP_PASSWORD="your-app-login-password"
 $env:ADMIN_PASSWORD="your-admin-password"
 $env:PAYMENT_PASSWORD="your-payment-password"
 npm start
@@ -86,6 +90,8 @@ start-lan-server.bat
 Before running the batch file, set both required passwords in the same terminal:
 
 ```powershell
+set APP_USERNAME=jkaran
+set APP_PASSWORD=your-app-login-password
 set ADMIN_PASSWORD=your-admin-password
 set PAYMENT_PASSWORD=your-payment-password
 start-lan-server.bat
@@ -137,6 +143,9 @@ and open available Excel/PDF files.
 
 ## Admin Access
 
+- App login endpoint: `POST /api/auth/login`
+- `APP_PASSWORD` is required before server startup
+- For hosted deployments, set `APP_USERNAME` and `APP_PASSWORD` in the server environment
 - Admin password endpoint: `POST /api/admin/login`
 - `ADMIN_PASSWORD` is required before server startup
 - Payment confirmation uses `PAYMENT_PASSWORD` from environment

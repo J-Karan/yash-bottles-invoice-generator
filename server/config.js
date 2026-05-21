@@ -29,6 +29,8 @@ const itemsPath = resolvePath([
 
 const port = Number(process.env.PORT || 5000)
 const host = process.env.HOST || '0.0.0.0'
+const appUsername = String(process.env.APP_USERNAME || 'jkaran').trim()
+const appPassword = requiredSecret('APP_PASSWORD')
 const adminPassword = requiredSecret('ADMIN_PASSWORD')
 const paymentPassword = requiredSecret('PAYMENT_PASSWORD')
 const invoiceServiceFee = Number(process.env.INVOICE_SERVICE_FEE || 100)
@@ -68,6 +70,8 @@ export {
   itemsPath,
   port,
   host,
+  appUsername,
+  appPassword,
   adminPassword,
   paymentPassword,
   invoiceServiceFee,

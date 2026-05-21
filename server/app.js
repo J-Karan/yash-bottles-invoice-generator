@@ -4,6 +4,13 @@ import fsSync from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import { createAdminSession, extractBearerToken, invalidateAdminSession, requireAdmin } from './admin-session.js'
+import {
+  createAppSession,
+  credentialsMatch,
+  extractAppSessionToken,
+  invalidateAppSession,
+  requireAppSession,
+} from './app-session.js'
 import { adminPassword, distDir, generatedExcelDir, generatedPdfDir } from './config.js'
 import { buildEwayBulkJson, readEwayReadiness } from './eway-core.js'
 import { createRateLimiter } from './rate-limit.js'
@@ -40,15 +47,48 @@ const paymentLimiter = createRateLimiter({
   maxAttempts: 5,
   message: 'Too many payment password attempts. Try again later.',
 })
+const appLoginLimiter = createRateLimiter({
+  windowMs: 1000 * 60 * 15,
+  maxAttempts: 10,
+  message: 'Too many login attempts. Try again later.',
+})
 
 app.use(cors())
 app.use(express.json())
-app.use('/downloads/excel', express.static(generatedExcelDir))
-app.use('/downloads/pdf', express.static(generatedPdfDir))
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, storage: 'sqlite' })
 })
+
+app.post('/api/auth/login', appLoginLimiter, async (req, res) => {
+  try {
+    await dbReady
+    const username = String(req.body?.username || '').trim()
+    const password = String(req.body?.password || '')
+    if (!credentialsMatch(username, password)) {
+      res.status(401).json({ error: 'Invalid username or password.' })
+      return
+    }
+
+    const token = createAppSession()
+    res.json({ token, username })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/auth/session', requireAppSession, (_req, res) => {
+  res.json({ ok: true })
+})
+
+app.post('/api/auth/logout', requireAppSession, (req, res) => {
+  invalidateAppSession(extractAppSessionToken(req))
+  res.json({ ok: true })
+})
+
+app.use('/downloads/excel', requireAppSession, express.static(generatedExcelDir))
+app.use('/downloads/pdf', requireAppSession, express.static(generatedPdfDir))
+app.use('/api', requireAppSession)
 
 app.get('/api/masters', async (_req, res) => {
   try {
