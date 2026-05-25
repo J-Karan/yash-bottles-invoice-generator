@@ -465,7 +465,7 @@ function App() {
     if (state.canDownload) {
       return (
         <button
-          className="text-button"
+          className="text-button history-action-eway"
           type="button"
           onClick={() => downloadProtectedFile(buildEwayJsonUrl(state.readiness), `${state.readiness.invoiceKey}-eway.json`)}
         >
@@ -474,7 +474,7 @@ function App() {
       )
     }
 
-    return <span className="history-file-missing">E-way JSON: {state.reason}</span>
+    return <span className="history-file-missing history-action-eway">E-way JSON: {state.reason}</span>
   }
 
   function openPaymentModal() {
@@ -1458,7 +1458,7 @@ function App() {
                             </button>
                             {invoice.excelAvailable ? (
                               <button
-                                className="text-button"
+                                className="text-button history-action-file"
                                 type="button"
                                 onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
                               >
@@ -1469,7 +1469,7 @@ function App() {
                             )}
                             {invoice.pdfAvailable ? (
                               <button
-                                className="text-button"
+                                className="text-button history-action-file"
                                 type="button"
                                 onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
                               >
@@ -1545,7 +1545,7 @@ function App() {
                       </button>
                       {invoice.excelAvailable ? (
                         <button
-                          className="text-button"
+                          className="text-button history-action-file"
                           type="button"
                           onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
                         >
@@ -1556,7 +1556,7 @@ function App() {
                       )}
                       {invoice.pdfAvailable ? (
                         <button
-                          className="text-button"
+                          className="text-button history-action-file"
                           type="button"
                           onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
                         >
