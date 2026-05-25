@@ -915,9 +915,10 @@
 
 .history-downloads {
   display: grid;
-  grid-template-columns: repeat(4, max-content);
+  grid-template-columns: repeat(2, minmax(86px, 1fr));
   gap: 8px;
   align-items: center;
+  max-width: 240px;
 }
 
 .history-downloads a,
@@ -925,7 +926,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 66px;
+  width: 100%;
+  min-width: 0;
   min-height: 38px;
   padding: 0 14px;
   border-radius: 12px;
@@ -946,7 +948,7 @@
 }
 
 .history-downloads .history-action-file {
-  min-width: 72px;
+  min-width: 0;
 }
 
 .history-downloads .history-action-delete {
@@ -963,8 +965,7 @@
 
 .history-downloads .history-action-eway {
   grid-column: 1 / -1;
-  justify-self: start;
-  min-width: 138px;
+  min-width: 0;
 }
 
 .history-file-missing {
@@ -981,6 +982,7 @@
 @media (max-width: 520px) {
   .history-downloads {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
   }
 
   .history-downloads a,
