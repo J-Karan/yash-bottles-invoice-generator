@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { resolveShipToOptionId } from './invoice-utils.js'
+import { formatDisplayDateTime, resolveShipToOptionId } from './invoice-utils.js'
 
 describe('resolveShipToOptionId', () => {
   it('keeps a valid selected ship-to option', () => {
@@ -22,5 +22,14 @@ describe('resolveShipToOptionId', () => {
     }
 
     assert.equal(resolveShipToOptionId('old_ship_to', buyer), 'bill_to')
+  })
+})
+
+describe('formatDisplayDateTime', () => {
+  it('uses a 12-hour AM/PM time format', () => {
+    const formatted = formatDisplayDateTime('2026-05-25T17:44:00+05:30')
+
+    assert.match(formatted, /\bPM\b/i)
+    assert.doesNotMatch(formatted, /\b17:44\b/)
   })
 })
