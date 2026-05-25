@@ -1458,7 +1458,7 @@ function App() {
                             </button>
                             {invoice.excelAvailable ? (
                               <button
-                                className="text-button history-action-file"
+                                className="text-button history-action-file history-action-excel"
                                 type="button"
                                 onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
                               >
@@ -1469,7 +1469,7 @@ function App() {
                             )}
                             {invoice.pdfAvailable ? (
                               <button
-                                className="text-button history-action-file"
+                                className="text-button history-action-file history-action-pdf"
                                 type="button"
                                 onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
                               >
@@ -1545,7 +1545,7 @@ function App() {
                       </button>
                       {invoice.excelAvailable ? (
                         <button
-                          className="text-button history-action-file"
+                          className="text-button history-action-file history-action-excel"
                           type="button"
                           onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
                         >
@@ -1556,7 +1556,7 @@ function App() {
                       )}
                       {invoice.pdfAvailable ? (
                         <button
-                          className="text-button history-action-file"
+                          className="text-button history-action-file history-action-pdf"
                           type="button"
                           onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
                         >

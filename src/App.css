@@ -915,7 +915,7 @@
 
 .history-downloads {
   display: grid;
-  grid-template-columns: repeat(2, minmax(72px, max-content));
+  grid-template-columns: 72px 72px 150px;
   gap: 6px;
   align-items: center;
   width: max-content;
@@ -943,6 +943,8 @@
 }
 
 .history-downloads .history-action-edit {
+  grid-column: 1;
+  grid-row: 1;
   background: rgba(39, 92, 155, 0.12);
   color: #24538d;
 }
@@ -952,6 +954,8 @@
 }
 
 .history-downloads .history-action-delete {
+  grid-column: 2;
+  grid-row: 1;
   border: 1px solid rgba(126, 29, 22, 0.28);
   background: linear-gradient(135deg, #9f2b22, #c75245);
   color: #fff8f4;
@@ -963,8 +967,19 @@
   background: linear-gradient(135deg, #852018, #b53d31);
 }
 
+.history-downloads .history-action-excel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.history-downloads .history-action-pdf {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .history-downloads .history-action-eway {
-  grid-column: 1 / -1;
+  grid-column: 3;
+  grid-row: 2;
   min-width: 150px;
 }
 
