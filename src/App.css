@@ -944,13 +944,15 @@
 }
 
 .history-downloads .history-action-delete {
-  background: rgba(177, 44, 32, 0.14);
-  color: #8c2118;
+  border: 1px solid rgba(126, 29, 22, 0.28);
+  background: linear-gradient(135deg, #9f2b22, #c75245);
+  color: #fff8f4;
+  box-shadow: 0 8px 18px rgba(126, 29, 22, 0.16);
 }
 
 .history-downloads .history-action-delete:hover,
 .history-downloads .history-action-delete:focus-visible {
-  background: rgba(177, 44, 32, 0.22);
+  background: linear-gradient(135deg, #852018, #b53d31);
 }
 
 .history-file-missing {
