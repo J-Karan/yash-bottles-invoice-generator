@@ -29,7 +29,7 @@ describe('formatDisplayDateTime', () => {
   it('uses a 12-hour AM/PM time format', () => {
     const formatted = formatDisplayDateTime('2026-05-25T17:44:00+05:30')
 
-    assert.match(formatted, /\bPM\b/i)
+    assert.match(formatted, /\bPM\b/)
     assert.doesNotMatch(formatted, /\b17:44\b/)
   })
 })

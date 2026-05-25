@@ -178,7 +178,7 @@ function formatDisplayDateTime(value) {
     return '--'
   }
 
-  return new Intl.DateTimeFormat('en-GB', {
+  const formatted = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -186,6 +186,8 @@ function formatDisplayDateTime(value) {
     minute: '2-digit',
     hour12: true,
   }).format(parsed)
+
+  return formatted.replace(/\b(am|pm)\b/i, (period) => period.toUpperCase())
 }
 
 function getStoredAdminToken() {
