@@ -13,7 +13,45 @@ const supplier = {
 }
 
 const stateCodeByGstinPrefix = {
+  '01': { stateName: 'JAMMU AND KASHMIR', stateCode: 1 },
+  '02': { stateName: 'HIMACHAL PRADESH', stateCode: 2 },
+  '03': { stateName: 'PUNJAB', stateCode: 3 },
+  '04': { stateName: 'CHANDIGARH', stateCode: 4 },
+  '05': { stateName: 'UTTARAKHAND', stateCode: 5 },
+  '06': { stateName: 'HARYANA', stateCode: 6 },
+  '07': { stateName: 'DELHI', stateCode: 7 },
+  '08': { stateName: 'RAJASTHAN', stateCode: 8 },
+  '09': { stateName: 'UTTAR PRADESH', stateCode: 9 },
+  10: { stateName: 'BIHAR', stateCode: 10 },
+  11: { stateName: 'SIKKIM', stateCode: 11 },
+  12: { stateName: 'ARUNACHAL PRADESH', stateCode: 12 },
+  13: { stateName: 'NAGALAND', stateCode: 13 },
+  14: { stateName: 'MANIPUR', stateCode: 14 },
+  15: { stateName: 'MIZORAM', stateCode: 15 },
+  16: { stateName: 'TRIPURA', stateCode: 16 },
+  17: { stateName: 'MEGHALAYA', stateCode: 17 },
+  18: { stateName: 'ASSAM', stateCode: 18 },
+  19: { stateName: 'WEST BENGAL', stateCode: 19 },
+  20: { stateName: 'JHARKHAND', stateCode: 20 },
+  21: { stateName: 'ODISHA', stateCode: 21 },
+  22: { stateName: 'CHHATTISGARH', stateCode: 22 },
+  23: { stateName: 'MADHYA PRADESH', stateCode: 23 },
+  24: { stateName: 'GUJARAT', stateCode: 24 },
+  25: { stateName: 'DAMAN AND DIU', stateCode: 25 },
+  26: { stateName: 'DADRA AND NAGAR HAVELI AND DAMAN AND DIU', stateCode: 26 },
   27: { stateName: 'MAHARASHTRA', stateCode: 27 },
+  28: { stateName: 'ANDHRA PRADESH', stateCode: 28 },
+  29: { stateName: 'KARNATAKA', stateCode: 29 },
+  30: { stateName: 'GOA', stateCode: 30 },
+  31: { stateName: 'LAKSHADWEEP', stateCode: 31 },
+  32: { stateName: 'KERALA', stateCode: 32 },
+  33: { stateName: 'TAMIL NADU', stateCode: 33 },
+  34: { stateName: 'PUDUCHERRY', stateCode: 34 },
+  35: { stateName: 'ANDAMAN AND NICOBAR ISLANDS', stateCode: 35 },
+  36: { stateName: 'TELANGANA', stateCode: 36 },
+  37: { stateName: 'ANDHRA PRADESH', stateCode: 37 },
+  38: { stateName: 'LADAKH', stateCode: 38 },
+  97: { stateName: 'OTHER TERRITORY', stateCode: 97 },
 }
 
 function openDb() {
@@ -423,4 +461,5 @@ function sanitize(value) {
 export {
   buildEwayBulkJson,
   readEwayReadiness,
+  stateFromGstin,
 }

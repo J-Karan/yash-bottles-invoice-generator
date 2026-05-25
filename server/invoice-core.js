@@ -28,6 +28,7 @@ import {
   defaultEwayBuyerDistances,
   defaultEwayInvoiceDistances,
 } from './seed-data.js'
+import { safeEqual } from './secret-utils.js'
 
 let db
 const dbReady = initializeDatabase()
@@ -1032,7 +1033,7 @@ function getPaymentSummary() {
 async function markUnpaidInvoicesPaid(password) {
   await dbReady
 
-  if (String(password || '') !== paymentPassword) {
+  if (!safeEqual(password, paymentPassword)) {
     const error = new Error('Incorrect payment password.')
     error.statusCode = 401
     throw error

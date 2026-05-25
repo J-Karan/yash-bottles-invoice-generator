@@ -14,6 +14,7 @@ import {
 import { adminPassword, distDir, generatedExcelDir, generatedPdfDir } from './config.js'
 import { buildEwayBulkJson, readEwayReadiness } from './eway-core.js'
 import { createRateLimiter } from './rate-limit.js'
+import { safeEqual } from './secret-utils.js'
 import {
   buildInvoiceFileTargets,
   buildInvoicePayload,
@@ -107,7 +108,7 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
   try {
     await dbReady
     const password = String(req.body?.password || '')
-    if (password !== adminPassword) {
+    if (!safeEqual(password, adminPassword)) {
       res.status(401).json({ error: 'Invalid admin password.' })
       return
     }

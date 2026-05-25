@@ -1,5 +1,6 @@
-import crypto from 'crypto'
 import { appPassword, appUsername } from './config.js'
+import { safeEqual } from './secret-utils.js'
+import crypto from 'crypto'
 
 const sessionTtlMs = 1000 * 60 * 60 * 12
 const appSessions = new Map()
@@ -48,15 +49,6 @@ function requireAppSession(req, res, next) {
 
 function credentialsMatch(username, password) {
   return safeEqual(username, appUsername) && safeEqual(password, appPassword)
-}
-
-function safeEqual(left, right) {
-  const leftBuffer = Buffer.from(String(left || ''))
-  const rightBuffer = Buffer.from(String(right || ''))
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false
-  }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer)
 }
 
 export {
