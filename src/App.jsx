@@ -1441,7 +1441,7 @@ function App() {
                         <td>
                           <div className="history-downloads">
                             <button
-                              className="text-button"
+                              className="text-button history-action-edit"
                               type="button"
                               onClick={() => loadInvoiceForEdit(invoice)}
                               disabled={historyActionBusyKey === invoice.invoiceKey}
@@ -1449,7 +1449,7 @@ function App() {
                               {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
                             </button>
                             <button
-                              className="text-button"
+                              className="text-button history-action-delete"
                               type="button"
                               onClick={() => handleDeleteInvoice(invoice)}
                               disabled={historyActionBusyKey === invoice.invoiceKey}
@@ -1528,7 +1528,7 @@ function App() {
 
                     <div className="history-downloads">
                       <button
-                        className="text-button"
+                        className="text-button history-action-edit"
                         type="button"
                         onClick={() => loadInvoiceForEdit(invoice)}
                         disabled={historyActionBusyKey === invoice.invoiceKey}
@@ -1536,7 +1536,7 @@ function App() {
                         {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
                       </button>
                       <button
-                        className="text-button"
+                        className="text-button history-action-delete"
                         type="button"
                         onClick={() => handleDeleteInvoice(invoice)}
                         disabled={historyActionBusyKey === invoice.invoiceKey}

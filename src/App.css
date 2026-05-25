@@ -938,6 +938,21 @@
   cursor: pointer;
 }
 
+.history-downloads .history-action-edit {
+  background: rgba(39, 92, 155, 0.12);
+  color: #24538d;
+}
+
+.history-downloads .history-action-delete {
+  background: rgba(177, 44, 32, 0.14);
+  color: #8c2118;
+}
+
+.history-downloads .history-action-delete:hover,
+.history-downloads .history-action-delete:focus-visible {
+  background: rgba(177, 44, 32, 0.22);
+}
+
 .history-file-missing {
   display: inline-flex;
   align-items: center;
