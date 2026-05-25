@@ -208,5 +208,6 @@ export {
   getStoredAdminToken,
   getStoredAppToken,
   maxLineItems,
+  resolveShipToOptionId,
   syncInvoiceForm,
 }
