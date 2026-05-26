@@ -21,6 +21,8 @@ import {
 } from './invoice-utils.js'
 import './App.css'
 
+const ewayBillPortalUrl = 'https://ewaybillgst.gov.in/Login.aspx'
+
 function App() {
   const [appToken, setAppToken] = useState(getStoredAppToken)
   const [appSessionChecking, setAppSessionChecking] = useState(Boolean(getStoredAppToken()))
@@ -436,6 +438,11 @@ function App() {
     return `/api/eway/invoices/${encodeURIComponent(invoice.invoiceKey)}/bulk-json?${params.toString()}`
   }
 
+  function downloadEwayJson(invoice) {
+    window.open(ewayBillPortalUrl, '_blank', 'noopener,noreferrer')
+    downloadProtectedFile(buildEwayJsonUrl(invoice), `${invoice.invoiceKey}-eway.json`)
+  }
+
   function getEwayDownloadState(invoice) {
     if (!invoice?.pdfAvailable) {
       return { canDownload: false, reason: 'PDF missing', readiness: null }
@@ -467,7 +474,7 @@ function App() {
         <button
           className="text-button history-action-eway"
           type="button"
-          onClick={() => downloadProtectedFile(buildEwayJsonUrl(state.readiness), `${state.readiness.invoiceKey}-eway.json`)}
+          onClick={() => downloadEwayJson(state.readiness)}
         >
           E-way JSON
         </button>
@@ -1308,12 +1315,7 @@ function App() {
                   {generatedEwayState.canDownload ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        downloadProtectedFile(
-                          buildEwayJsonUrl(generatedEwayState.readiness),
-                          `${generatedEwayState.readiness.invoiceKey}-eway.json`,
-                        )
-                      }
+                      onClick={() => downloadEwayJson(generatedEwayState.readiness)}
                     >
                       Download E-way JSON
                     </button>
