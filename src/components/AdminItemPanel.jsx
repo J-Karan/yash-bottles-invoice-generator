@@ -40,6 +40,7 @@ export function AdminItemPanel({
               className={`admin-list-card ${editingItemCode === item.Item_Code ? 'admin-list-card-active' : ''}`}
               type="button"
               onClick={() => onStartItemEdit(item)}
+              disabled={savingItem}
             >
               <div>
                 <strong>{item.Description}</strong>

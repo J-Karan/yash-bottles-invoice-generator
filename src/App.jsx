@@ -439,9 +439,9 @@ function App() {
     return `/api/eway/invoices/${encodeURIComponent(invoice.invoiceKey)}/bulk-json?${params.toString()}`
   }
 
-  function downloadEwayJson(invoice) {
+  function downloadEwayJson(invoice, setDownloadError = setError) {
     window.open(ewayBillPortalUrl, '_blank', 'noopener,noreferrer')
-    downloadProtectedFile(buildEwayJsonUrl(invoice), `${invoice.invoiceKey}-eway.json`)
+    downloadProtectedFile(buildEwayJsonUrl(invoice), `${invoice.invoiceKey}-eway.json`, setDownloadError)
   }
 
   function getEwayDownloadState(invoice) {
@@ -475,7 +475,7 @@ function App() {
         <button
           className="text-button history-action-eway"
           type="button"
-          onClick={() => downloadEwayJson(state.readiness)}
+          onClick={() => downloadEwayJson(state.readiness, setHistoryError)}
         >
           E-way JSON
         </button>
@@ -1325,7 +1325,7 @@ function App() {
                   {generatedEwayState.canDownload ? (
                     <button
                       type="button"
-                      onClick={() => downloadEwayJson(generatedEwayState.readiness)}
+                      onClick={() => downloadEwayJson(generatedEwayState.readiness, setError)}
                     >
                       Download E-way JSON
                     </button>

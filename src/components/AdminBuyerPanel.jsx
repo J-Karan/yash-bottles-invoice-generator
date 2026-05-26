@@ -38,6 +38,7 @@ export function AdminBuyerPanel({
               className={`admin-list-card ${editingBuyerCode === buyer.Buyer_Code ? 'admin-list-card-active' : ''}`}
               type="button"
               onClick={() => onStartBuyerEdit(buyer)}
+              disabled={savingBuyer}
             >
               <div>
                 <strong>{buyer.Buyer_Name}</strong>
