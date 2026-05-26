@@ -31,12 +31,14 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--ink);
+  overflow-x: hidden;
 }
 
 button,
 input,
 select {
   font: inherit;
+  max-width: 100%;
 }
 
 a {
