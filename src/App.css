@@ -439,6 +439,7 @@
   display: flex;
   flex-direction: column;
   gap: 9px;
+  min-width: 0;
   font-size: 0.98rem;
   color: var(--muted-strong);
 }
@@ -447,6 +448,8 @@
 .form-panel select,
 .admin-form-panel input,
 .admin-form-panel select {
+  width: 100%;
+  min-width: 0;
   border: 1px solid rgba(93, 65, 37, 0.18);
   background: rgba(255, 255, 255, 0.92);
   border-radius: 16px;
@@ -1374,6 +1377,13 @@
   .login-password-row,
   .login-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .form-panel input,
+  .form-panel select,
+  .admin-form-panel input,
+  .admin-form-panel select {
+    font-size: 0.92rem;
   }
 }
 
