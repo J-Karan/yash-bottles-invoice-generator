@@ -319,8 +319,9 @@ function App() {
     }
   }
 
-  async function downloadProtectedFile(url, filename) {
+  async function downloadProtectedFile(url, filename, setDownloadError = setError) {
     try {
+      setDownloadError('')
       const response = await appFetch(url)
       if (!response.ok) {
         const contentType = response.headers.get('content-type') || ''
@@ -341,8 +342,7 @@ function App() {
       link.remove()
       URL.revokeObjectURL(objectUrl)
     } catch (downloadError) {
-      setHistoryError(downloadError.message)
-      setError(downloadError.message)
+      setDownloadError(downloadError.message)
     }
   }
 
@@ -768,6 +768,7 @@ function App() {
       return
     }
 
+    setError('')
     setForm((current) => ({
       ...current,
       lineItems: [...current.lineItems, createLineItem(items[0]?.Item_Code || '')],
@@ -775,6 +776,7 @@ function App() {
   }
 
   function removeLineItem(id) {
+    setError('')
     setForm((current) => {
       if (current.lineItems.length === 1) {
         return current
@@ -1081,12 +1083,13 @@ function App() {
                   value={form.vehicleNumber}
                   onChange={updateInvoiceField}
                   placeholder="MH12AB1234"
+                  required
                 />
               </label>
 
               <label>
                 <span>Invoice date</span>
-                <input name="invoiceDate" type="date" value={form.invoiceDate} onChange={updateInvoiceField} />
+                <input name="invoiceDate" type="date" value={form.invoiceDate} onChange={updateInvoiceField} required />
               </label>
             </div>
 
@@ -1096,7 +1099,12 @@ function App() {
                   <span className="section-label">Invoice items</span>
                   <p>Add as many item rows as you need.</p>
                 </div>
-                <button className="secondary-button" type="button" onClick={addLineItem}>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={addLineItem}
+                  disabled={form.lineItems.length >= maxLineItems}
+                >
                   Add item
                 </button>
               </div>
@@ -1140,6 +1148,7 @@ function App() {
                             min="1"
                             value={line.bags}
                             onChange={(event) => updateLineItem(line.id, 'bags', event.target.value)}
+                            required
                           />
                         </label>
                       </div>
@@ -1303,13 +1312,13 @@ function App() {
                 <div className="download-actions">
                   <button
                     type="button"
-                    onClick={() => downloadProtectedFile(result.files.excel, `${result.invoice.invoiceKey}.xlsx`)}
+                    onClick={() => downloadProtectedFile(result.files.excel, `${result.invoice.invoiceKey}.xlsx`, setError)}
                   >
                     Download Excel
                   </button>
                   <button
                     type="button"
-                    onClick={() => downloadProtectedFile(result.files.pdf, `${result.invoice.invoiceKey}.pdf`)}
+                    onClick={() => downloadProtectedFile(result.files.pdf, `${result.invoice.invoiceKey}.pdf`, setError)}
                   >
                     Download PDF
                   </button>
@@ -1350,7 +1359,7 @@ function App() {
           invoiceHistory={invoiceHistory}
           loadInvoiceForEdit={loadInvoiceForEdit}
           markingPaid={markingPaid}
-          onDownloadProtectedFile={downloadProtectedFile}
+          onDownloadProtectedFile={(url, filename) => downloadProtectedFile(url, filename, setHistoryError)}
           onOpenPaymentModal={openPaymentModal}
           onRefreshEwayReadiness={refreshEwayReadiness}
           onRefreshHistory={refreshHistory}
