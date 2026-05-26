@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AdminAuthPanel } from './components/AdminAuthPanel.jsx'
+import { AdminBuyerPanel } from './components/AdminBuyerPanel.jsx'
+import { AdminItemPanel } from './components/AdminItemPanel.jsx'
+import { InvoiceHistory } from './components/InvoiceHistory.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
 import { PaymentModal } from './components/PaymentModal.jsx'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher.jsx'
@@ -10,8 +13,6 @@ import {
   defaultPaymentSummary,
   emptyBuyerForm,
   emptyItemForm,
-  formatDisplayDate,
-  formatDisplayDateTime,
   formatMoney,
   getStoredAdminToken,
   getStoredAppToken,
@@ -1337,246 +1338,29 @@ function App() {
       ) : null}
 
       {activeView === 'history' ? (
-        <section className="panel history-panel">
-          <div className="panel-header panel-header-row">
-            <div>
-              <h2>Invoice History</h2>
-              <p>Review generated invoices, download files, and clear the payment counter when paid.</p>
-            </div>
-            <div className="panel-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={openPaymentModal}
-                disabled={markingPaid || paymentSummary.unpaidInvoices === 0}
-              >
-                {markingPaid ? 'Marking paid...' : 'Mark Paid'}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => {
-                  refreshHistory()
-                  refreshEwayReadiness()
-                }}
-                disabled={historyLoading || ewayLoading}
-              >
-                {historyLoading ? 'Refreshing...' : 'Refresh history'}
-              </button>
-            </div>
-          </div>
-
-          <div className="history-overview">
-            <article>
-              <span>Records</span>
-              <strong>{invoiceHistory.length}</strong>
-            </article>
-            <article>
-              <span>Non Paid Invoices</span>
-              <strong>{paymentSummary.unpaidInvoices}</strong>
-            </article>
-            <article>
-              <span>Amount Due</span>
-              <strong>{formatMoney(paymentSummary.amountDue)}</strong>
-            </article>
-          </div>
-
-          <p className="hint-text">
-            Paid so far: {formatMoney(paymentSummary.paidAmountTotal)} at {formatMoney(paymentSummary.invoiceRate)} per invoice.
-          </p>
-
-          <label className="search-field history-search">
-            <span>Search history</span>
-            <input
-              value={historySearch}
-              onChange={(event) => setHistorySearch(event.target.value)}
-              placeholder="Invoice no, buyer, vehicle, GSTIN"
-            />
-          </label>
-
-          {historyError ? <p className="error-banner">{historyError}</p> : null}
-          {paymentError ? <p className="error-banner">{paymentError}</p> : null}
-          {paymentStatus ? <p className="success-banner">{paymentStatus}</p> : null}
-          {ewayError ? <p className="error-banner">{ewayError}</p> : null}
-          {historyLoading ? <p className="hint-text">Loading invoice history...</p> : null}
-          {!historyLoading && !filteredInvoiceHistory.length ? (
-            <p className="hint-text">No invoices found for the current filter.</p>
-          ) : null}
-
-          {!historyLoading && filteredInvoiceHistory.length ? (
-            <div className="history-results">
-              <div className="history-table-wrap">
-                <table className="history-table">
-                  <thead>
-                    <tr>
-                      <th>Invoice</th>
-                      <th>Date</th>
-                      <th>Buyer</th>
-                      <th>Vehicle</th>
-                      <th>Lines</th>
-                      <th>Total</th>
-                      <th>Payment</th>
-                      <th>Files</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInvoiceHistory.map((invoice) => (
-                      <tr key={invoice.invoiceNumber}>
-                        <td>
-                          <strong>{invoice.invoiceNumber}</strong>
-                          <small>{formatDisplayDateTime(invoice.createdAt)}</small>
-                        </td>
-                        <td>{formatDisplayDate(invoice.invoiceDate)}</td>
-                        <td>
-                          <strong>{invoice.buyerName}</strong>
-                          <small>{invoice.buyerCode}</small>
-                        </td>
-                        <td>{invoice.vehicleNumber}</td>
-                        <td>{invoice.lineCount}</td>
-                        <td>{formatMoney(invoice.total)}</td>
-                        <td>
-                          <span className={`payment-pill ${invoice.isPaid ? 'payment-pill-paid' : 'payment-pill-unpaid'}`}>
-                            {invoice.isPaid ? 'Paid' : 'Non paid'}
-                          </span>
-                          {invoice.paidAt ? <small>{formatDisplayDateTime(invoice.paidAt)}</small> : null}
-                        </td>
-                        <td>
-                          <div className="history-downloads">
-                            <button
-                              className="text-button history-action-edit"
-                              type="button"
-                              onClick={() => loadInvoiceForEdit(invoice)}
-                              disabled={historyActionBusyKey === invoice.invoiceKey}
-                            >
-                              {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
-                            </button>
-                            <button
-                              className="text-button history-action-delete"
-                              type="button"
-                              onClick={() => handleDeleteInvoice(invoice)}
-                              disabled={historyActionBusyKey === invoice.invoiceKey}
-                            >
-                              {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
-                            </button>
-                            {invoice.excelAvailable ? (
-                              <button
-                                className="text-button history-action-file history-action-excel"
-                                type="button"
-                                onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
-                              >
-                                Excel
-                              </button>
-                            ) : (
-                              <span className="history-file-missing">Excel missing</span>
-                            )}
-                            {invoice.pdfAvailable ? (
-                              <button
-                                className="text-button history-action-file history-action-pdf"
-                                type="button"
-                                onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
-                              >
-                                PDF
-                              </button>
-                            ) : (
-                              <span className="history-file-missing">PDF missing</span>
-                            )}
-                            {renderEwayJsonAction(invoice)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="history-mobile-list">
-                {filteredInvoiceHistory.map((invoice) => (
-                  <article className="history-mobile-card" key={`${invoice.invoiceNumber}-mobile`}>
-                    <div className="history-mobile-head">
-                      <strong>{invoice.invoiceNumber}</strong>
-                      <span>{formatDisplayDate(invoice.invoiceDate)}</span>
-                    </div>
-
-                    <dl className="history-mobile-meta">
-                      <div>
-                        <dt>Buyer</dt>
-                        <dd>{invoice.buyerName}</dd>
-                      </div>
-                      <div>
-                        <dt>Code</dt>
-                        <dd>{invoice.buyerCode}</dd>
-                      </div>
-                      <div>
-                        <dt>Vehicle</dt>
-                        <dd>{invoice.vehicleNumber || '--'}</dd>
-                      </div>
-                      <div>
-                        <dt>Lines</dt>
-                        <dd>{invoice.lineCount}</dd>
-                      </div>
-                      <div>
-                        <dt>Total</dt>
-                        <dd>{formatMoney(invoice.total)}</dd>
-                      </div>
-                      <div>
-                        <dt>Payment</dt>
-                        <dd>{invoice.isPaid ? 'Paid' : 'Non paid'}</dd>
-                      </div>
-                      <div>
-                        <dt>Generated</dt>
-                        <dd>{formatDisplayDateTime(invoice.createdAt)}</dd>
-                      </div>
-                    </dl>
-
-                    <div className="history-downloads">
-                      <button
-                        className="text-button history-action-edit"
-                        type="button"
-                        onClick={() => loadInvoiceForEdit(invoice)}
-                        disabled={historyActionBusyKey === invoice.invoiceKey}
-                      >
-                        {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
-                      </button>
-                      <button
-                        className="text-button history-action-delete"
-                        type="button"
-                        onClick={() => handleDeleteInvoice(invoice)}
-                        disabled={historyActionBusyKey === invoice.invoiceKey}
-                      >
-                        {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
-                      </button>
-                      {invoice.excelAvailable ? (
-                        <button
-                          className="text-button history-action-file history-action-excel"
-                          type="button"
-                          onClick={() => downloadProtectedFile(invoice.files.excel, `${invoice.invoiceKey}.xlsx`)}
-                        >
-                          Excel
-                        </button>
-                      ) : (
-                        <span className="history-file-missing">Excel missing</span>
-                      )}
-                      {invoice.pdfAvailable ? (
-                        <button
-                          className="text-button history-action-file history-action-pdf"
-                          type="button"
-                          onClick={() => downloadProtectedFile(invoice.files.pdf, `${invoice.invoiceKey}.pdf`)}
-                        >
-                          PDF
-                        </button>
-                      ) : (
-                        <span className="history-file-missing">PDF missing</span>
-                      )}
-                      {renderEwayJsonAction(invoice)}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
+        <InvoiceHistory
+          ewayError={ewayError}
+          ewayLoading={ewayLoading}
+          filteredInvoiceHistory={filteredInvoiceHistory}
+          handleDeleteInvoice={handleDeleteInvoice}
+          historyActionBusyKey={historyActionBusyKey}
+          historyError={historyError}
+          historyLoading={historyLoading}
+          historySearch={historySearch}
+          invoiceHistory={invoiceHistory}
+          loadInvoiceForEdit={loadInvoiceForEdit}
+          markingPaid={markingPaid}
+          onDownloadProtectedFile={downloadProtectedFile}
+          onOpenPaymentModal={openPaymentModal}
+          onRefreshEwayReadiness={refreshEwayReadiness}
+          onRefreshHistory={refreshHistory}
+          onRenderEwayJsonAction={renderEwayJsonAction}
+          paymentError={paymentError}
+          paymentStatus={paymentStatus}
+          paymentSummary={paymentSummary}
+          setHistorySearch={setHistorySearch}
+        />
       ) : null}
-
       {paymentModalOpen ? (
         <PaymentModal
           paymentSummary={paymentSummary}
@@ -1602,285 +1386,38 @@ function App() {
       ) : null}
 
       {activeView === 'buyers' && adminToken ? (
-        <section className="admin-grid">
-          <section className="panel admin-list-panel">
-            <div className="panel-header panel-header-row">
-              <div>
-                <h2>Buyers</h2>
-                <p>Live master records stored in SQLite.</p>
-              </div>
-              <button className="secondary-button" type="button" onClick={startBuyerCreate}>
-                New buyer
-              </button>
-            </div>
-
-            <label className="search-field">
-              <span>Search buyers</span>
-              <input value={buyerSearch} onChange={(event) => setBuyerSearch(event.target.value)} placeholder="Search by code, name, GSTIN, city" />
-            </label>
-
-            <div className="admin-list">
-              {filteredBuyers.map((buyer) => (
-                <button
-                  key={buyer.Buyer_Code}
-                  className={`admin-list-card ${editingBuyerCode === buyer.Buyer_Code ? 'admin-list-card-active' : ''}`}
-                  type="button"
-                  onClick={() => startBuyerEdit(buyer)}
-                >
-                  <div>
-                    <strong>{buyer.Buyer_Name}</strong>
-                    <span>{buyer.Buyer_Code}</span>
-                  </div>
-                  <small>{buyer.GSTIN || 'No GSTIN saved'}</small>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <form className="panel admin-form-panel" onSubmit={submitBuyer}>
-            <div className="panel-header">
-              <h2>{editingBuyerCode ? `Edit buyer ${editingBuyerCode}` : 'Create buyer'}</h2>
-              <p>Changes save directly into the SQLite master database.</p>
-            </div>
-
-            <div className="admin-form-grid">
-              <label>
-                <span>Buyer code</span>
-                <input
-                  value={buyerForm.Buyer_Code}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Buyer_Code: event.target.value }))}
-                  disabled={Boolean(editingBuyerCode)}
-                  placeholder="B006"
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>Buyer name</span>
-                <input
-                  value={buyerForm.Buyer_Name}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Buyer_Name: event.target.value }))}
-                  placeholder="New buyer name"
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>Address line 1</span>
-                <input
-                  value={buyerForm.Address_Line1}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Address_Line1: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Address line 2</span>
-                <input
-                  value={buyerForm.Address_Line2}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Address_Line2: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Address line 3</span>
-                <input
-                  value={buyerForm.Address_Line3}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Address_Line3: event.target.value }))}
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>City / State / PIN</span>
-                <input
-                  value={buyerForm.City_State_Pin}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, City_State_Pin: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>GSTIN</span>
-                <input
-                  value={buyerForm.GSTIN}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, GSTIN: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Ship to name</span>
-                <input
-                  value={buyerForm.Ship_To_Name}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Ship_To_Name: event.target.value }))}
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>Ship to address</span>
-                <input
-                  value={buyerForm.Ship_To_Address}
-                  onChange={(event) => setBuyerForm((current) => ({ ...current, Ship_To_Address: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            {buyerError ? <p className="error-banner">{buyerError}</p> : null}
-            {buyerStatus ? <p className="success-banner">{buyerStatus}</p> : null}
-
-            <div className="admin-actions">
-              <button className="primary-button" type="submit" disabled={savingBuyer}>
-                {savingBuyer ? 'Saving buyer...' : editingBuyerCode ? 'Update buyer' : 'Create buyer'}
-              </button>
-              <button className="secondary-button" type="button" onClick={startBuyerCreate}>
-                Clear form
-              </button>
-              {editingBuyerCode ? (
-                <button className="danger-button" type="button" onClick={removeBuyer} disabled={savingBuyer}>
-                  Delete buyer
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </section>
+        <AdminBuyerPanel
+          buyerError={buyerError}
+          buyerForm={buyerForm}
+          buyerSearch={buyerSearch}
+          buyerStatus={buyerStatus}
+          editingBuyerCode={editingBuyerCode}
+          filteredBuyers={filteredBuyers}
+          onRemoveBuyer={removeBuyer}
+          onStartBuyerCreate={startBuyerCreate}
+          onStartBuyerEdit={startBuyerEdit}
+          onSubmitBuyer={submitBuyer}
+          savingBuyer={savingBuyer}
+          setBuyerForm={setBuyerForm}
+          setBuyerSearch={setBuyerSearch}
+        />
       ) : null}
-
       {activeView === 'items' && adminToken ? (
-        <section className="admin-grid">
-          <section className="panel admin-list-panel">
-            <div className="panel-header panel-header-row">
-              <div>
-                <h2>Items</h2>
-                <p>Update rates and packing data without editing CSV files.</p>
-              </div>
-              <button className="secondary-button" type="button" onClick={startItemCreate}>
-                New item
-              </button>
-            </div>
-
-            <label className="search-field">
-              <span>Search items</span>
-              <input value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Search by code, description, category, alias" />
-            </label>
-
-            <div className="admin-list">
-              {filteredItems.map((item) => (
-                <button
-                  key={item.Item_Code}
-                  className={`admin-list-card ${editingItemCode === item.Item_Code ? 'admin-list-card-active' : ''}`}
-                  type="button"
-                  onClick={() => startItemEdit(item)}
-                >
-                  <div>
-                    <strong>{item.Description}</strong>
-                    <span>{item.Item_Code}</span>
-                  </div>
-                  <small>{formatMoney(item.Gross_Rate)}</small>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <form className="panel admin-form-panel" onSubmit={submitItem}>
-            <div className="panel-header">
-              <h2>{editingItemCode ? `Edit item ${editingItemCode}` : 'Create item'}</h2>
-              <p>Rates saved here will immediately affect future invoices.</p>
-            </div>
-
-            <div className="admin-form-grid">
-              <label>
-                <span>Item code</span>
-                <input
-                  value={itemForm.Item_Code}
-                  onChange={(event) => setItemForm((current) => ({ ...current, Item_Code: event.target.value }))}
-                  disabled={Boolean(editingItemCode)}
-                  placeholder="IT009"
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>Description</span>
-                <input
-                  value={itemForm.Description}
-                  onChange={(event) => setItemForm((current) => ({ ...current, Description: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>HSN code</span>
-                <input
-                  value={itemForm.HSN_Code}
-                  onChange={(event) => setItemForm((current) => ({ ...current, HSN_Code: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Category</span>
-                <input
-                  value={itemForm.Category}
-                  onChange={(event) => setItemForm((current) => ({ ...current, Category: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Gross rate</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={itemForm.Gross_Rate}
-                  onChange={(event) => setItemForm((current) => ({ ...current, Gross_Rate: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Non-taxable rate</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={itemForm.Non_Taxable_Rate}
-                  onChange={(event) =>
-                    setItemForm((current) => ({ ...current, Non_Taxable_Rate: event.target.value }))
-                  }
-                />
-              </label>
-
-              <label>
-                <span>Bottles per bag</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={itemForm.Bottles_Per_Bag}
-                  onChange={(event) =>
-                    setItemForm((current) => ({ ...current, Bottles_Per_Bag: event.target.value }))
-                  }
-                />
-              </label>
-
-              <label className="field-span-2">
-                <span>Dad writes as</span>
-                <input
-                  value={itemForm.Dad_Writes_As}
-                  onChange={(event) => setItemForm((current) => ({ ...current, Dad_Writes_As: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            {itemError ? <p className="error-banner">{itemError}</p> : null}
-            {itemStatus ? <p className="success-banner">{itemStatus}</p> : null}
-
-            <div className="admin-actions">
-              <button className="primary-button" type="submit" disabled={savingItem}>
-                {savingItem ? 'Saving item...' : editingItemCode ? 'Update item' : 'Create item'}
-              </button>
-              <button className="secondary-button" type="button" onClick={startItemCreate}>
-                Clear form
-              </button>
-              {editingItemCode ? (
-                <button className="danger-button" type="button" onClick={removeItem} disabled={savingItem}>
-                  Delete item
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </section>
+        <AdminItemPanel
+          editingItemCode={editingItemCode}
+          filteredItems={filteredItems}
+          itemError={itemError}
+          itemForm={itemForm}
+          itemSearch={itemSearch}
+          itemStatus={itemStatus}
+          onRemoveItem={removeItem}
+          onStartItemCreate={startItemCreate}
+          onStartItemEdit={startItemEdit}
+          onSubmitItem={submitItem}
+          savingItem={savingItem}
+          setItemForm={setItemForm}
+          setItemSearch={setItemSearch}
+        />
       ) : null}
     </main>
   )
