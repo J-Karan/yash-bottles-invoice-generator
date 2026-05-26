@@ -1,7 +1,9 @@
 .app-shell {
   width: min(1280px, calc(100% - 36px));
+  max-width: 100%;
   margin: 0 auto;
   padding: 18px 0 32px;
+  overflow-x: hidden;
 }
 
 .app-shell-loading {
@@ -418,6 +420,8 @@
 .status-card {
   padding: 30px;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .panel-header h2 {
@@ -462,6 +466,7 @@
 .admin-form-panel input,
 .admin-form-panel select {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   border: 1px solid rgba(93, 65, 37, 0.18);
   background: rgba(255, 255, 255, 0.92);
@@ -470,6 +475,9 @@
   padding: 0 15px;
   font-size: 1rem;
   color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-panel input:focus,
