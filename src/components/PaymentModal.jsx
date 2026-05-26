@@ -55,6 +55,7 @@ function PaymentModal({
             placeholder="Enter payment password"
             autoComplete="current-password"
             autoFocus
+            required
           />
         </label>
 

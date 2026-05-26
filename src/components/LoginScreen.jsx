@@ -47,6 +47,7 @@ function LoginScreen({
               onChange={(event) => setLoginUsername(event.target.value)}
               autoComplete="username"
               autoFocus
+              required
             />
           </label>
 
@@ -58,6 +59,7 @@ function LoginScreen({
                 value={loginPassword}
                 onChange={(event) => setLoginPassword(event.target.value)}
                 autoComplete="current-password"
+                required
               />
               <button
                 className="text-button login-password-toggle"

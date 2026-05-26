@@ -23,7 +23,7 @@ export function AdminItemPanel({
             <h2>Items</h2>
             <p>Update rates and packing data without editing CSV files.</p>
           </div>
-          <button className="secondary-button" type="button" onClick={onStartItemCreate}>
+          <button className="secondary-button" type="button" onClick={onStartItemCreate} disabled={savingItem}>
             New item
           </button>
         </div>
@@ -65,6 +65,7 @@ export function AdminItemPanel({
               onChange={(event) => setItemForm((current) => ({ ...current, Item_Code: event.target.value }))}
               disabled={Boolean(editingItemCode)}
               placeholder="IT009"
+              required
             />
           </label>
 
@@ -73,6 +74,7 @@ export function AdminItemPanel({
             <input
               value={itemForm.Description}
               onChange={(event) => setItemForm((current) => ({ ...current, Description: event.target.value }))}
+              required
             />
           </label>
 
@@ -100,6 +102,7 @@ export function AdminItemPanel({
               step="0.01"
               value={itemForm.Gross_Rate}
               onChange={(event) => setItemForm((current) => ({ ...current, Gross_Rate: event.target.value }))}
+              required
             />
           </label>
 
@@ -113,6 +116,7 @@ export function AdminItemPanel({
               onChange={(event) =>
                 setItemForm((current) => ({ ...current, Non_Taxable_Rate: event.target.value }))
               }
+              required
             />
           </label>
 
@@ -126,6 +130,7 @@ export function AdminItemPanel({
               onChange={(event) =>
                 setItemForm((current) => ({ ...current, Bottles_Per_Bag: event.target.value }))
               }
+              required
             />
           </label>
 
@@ -145,7 +150,7 @@ export function AdminItemPanel({
           <button className="primary-button" type="submit" disabled={savingItem}>
             {savingItem ? 'Saving item...' : editingItemCode ? 'Update item' : 'Create item'}
           </button>
-          <button className="secondary-button" type="button" onClick={onStartItemCreate}>
+          <button className="secondary-button" type="button" onClick={onStartItemCreate} disabled={savingItem}>
             Clear form
           </button>
           {editingItemCode ? (

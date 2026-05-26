@@ -21,7 +21,7 @@ export function AdminBuyerPanel({
             <h2>Buyers</h2>
             <p>Live master records stored in SQLite.</p>
           </div>
-          <button className="secondary-button" type="button" onClick={onStartBuyerCreate}>
+          <button className="secondary-button" type="button" onClick={onStartBuyerCreate} disabled={savingBuyer}>
             New buyer
           </button>
         </div>
@@ -63,6 +63,7 @@ export function AdminBuyerPanel({
               onChange={(event) => setBuyerForm((current) => ({ ...current, Buyer_Code: event.target.value }))}
               disabled={Boolean(editingBuyerCode)}
               placeholder="B006"
+              required
             />
           </label>
 
@@ -72,6 +73,7 @@ export function AdminBuyerPanel({
               value={buyerForm.Buyer_Name}
               onChange={(event) => setBuyerForm((current) => ({ ...current, Buyer_Name: event.target.value }))}
               placeholder="New buyer name"
+              required
             />
           </label>
 
@@ -139,7 +141,7 @@ export function AdminBuyerPanel({
           <button className="primary-button" type="submit" disabled={savingBuyer}>
             {savingBuyer ? 'Saving buyer...' : editingBuyerCode ? 'Update buyer' : 'Create buyer'}
           </button>
-          <button className="secondary-button" type="button" onClick={onStartBuyerCreate}>
+          <button className="secondary-button" type="button" onClick={onStartBuyerCreate} disabled={savingBuyer}>
             Clear form
           </button>
           {editingBuyerCode ? (

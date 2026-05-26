@@ -30,6 +30,7 @@ function AdminAuthPanel({
               onChange={(event) => setAdminPasswordInput(event.target.value)}
               placeholder="Enter admin password"
               autoComplete="current-password"
+              required
             />
             <button
               className="text-button admin-auth-toggle"
