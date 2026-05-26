@@ -573,6 +573,11 @@
   font-weight: 700;
 }
 
+.danger-button:disabled {
+  opacity: 0.68;
+  cursor: wait;
+}
+
 .primary-button:disabled {
   opacity: 0.68;
   cursor: wait;
@@ -584,6 +589,22 @@
   background: rgba(177, 44, 32, 0.1);
   color: #8c2118;
   padding: 12px 14px;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.inline-warning {
+  margin: 10px 0 0;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(177, 44, 32, 0.09);
+  color: #8c2118;
+  font-weight: 700;
 }
 
 .success-banner {
@@ -1200,6 +1221,28 @@
   min-width: 180px;
 }
 
+.delete-modal-card {
+  border-color: rgba(177, 44, 32, 0.28);
+}
+
+.delete-modal-kicker {
+  color: #8c2118;
+}
+
+.delete-modal-detail {
+  margin: 0;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(177, 44, 32, 0.08);
+  color: var(--text);
+}
+
+.modal-danger {
+  min-width: 180px;
+  background: linear-gradient(135deg, #b9342a, #8d2119);
+  color: #fff;
+}
+
 .payment-pill {
   display: inline-flex;
   align-items: center;
@@ -1288,6 +1331,17 @@
 .admin-list-card:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+.empty-state {
+  margin: 0;
+  border: 1px dashed rgba(93, 65, 37, 0.22);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--muted);
+  font-weight: 700;
+  text-align: center;
 }
 
 .admin-form-grid {

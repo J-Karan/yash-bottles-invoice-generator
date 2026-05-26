@@ -49,6 +49,9 @@ export function AdminItemPanel({
               <small>{formatMoney(item.Gross_Rate)}</small>
             </button>
           ))}
+          {!filteredItems.length ? (
+            <p className="empty-state">No items match this search.</p>
+          ) : null}
         </div>
       </section>
 

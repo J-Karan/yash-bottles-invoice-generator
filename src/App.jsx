@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AdminAuthPanel } from './components/AdminAuthPanel.jsx'
 import { AdminBuyerPanel } from './components/AdminBuyerPanel.jsx'
 import { AdminItemPanel } from './components/AdminItemPanel.jsx'
+import { DeleteConfirmModal } from './components/DeleteConfirmModal.jsx'
 import { InvoiceHistory } from './components/InvoiceHistory.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
 import { PaymentModal } from './components/PaymentModal.jsx'
@@ -13,6 +14,7 @@ import {
   defaultPaymentSummary,
   emptyBuyerForm,
   emptyItemForm,
+  formatDisplayDate,
   formatMoney,
   getStoredAdminToken,
   getStoredAppToken,
@@ -23,11 +25,13 @@ import {
 import './App.css'
 
 const ewayBillPortalUrl = 'https://ewaybillgst.gov.in/Login.aspx'
+const vehicleNumberPattern = '^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$'
+const vehicleNumberRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/
 
 function App() {
   const [appToken, setAppToken] = useState(getStoredAppToken)
   const [appSessionChecking, setAppSessionChecking] = useState(Boolean(getStoredAppToken()))
-  const [loginUsername, setLoginUsername] = useState('jkaran')
+  const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginBusy, setLoginBusy] = useState(false)
   const [loginError, setLoginError] = useState('')
@@ -70,6 +74,7 @@ function App() {
   const [markingPaid, setMarkingPaid] = useState(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [paymentPasswordInput, setPaymentPasswordInput] = useState('')
+  const [pendingDelete, setPendingDelete] = useState(null)
   const [ewayReadiness, setEwayReadiness] = useState([])
   const [ewaySummary, setEwaySummary] = useState({ total: 0, ready: 0, needsInput: 0 })
   const [ewayLoading, setEwayLoading] = useState(false)
@@ -93,6 +98,17 @@ function App() {
 
     verifyAdminSession()
   }, [adminToken])
+
+  useEffect(() => {
+    if (activeView === 'history') {
+      return
+    }
+
+    setPaymentModalOpen(false)
+    setPaymentPasswordInput('')
+    setPaymentError('')
+    setPaymentStatus('')
+  }, [activeView])
 
   const selectedBuyer = useMemo(
     () => buyers.find((buyer) => buyer.Buyer_Code === form.buyerCode),
@@ -201,6 +217,7 @@ function App() {
       [
         invoice.invoiceNumber,
         invoice.invoiceDate,
+        formatDisplayDate(invoice.invoiceDate),
         invoice.buyerName,
         invoice.buyerCode,
         invoice.buyerGstin,
@@ -630,6 +647,10 @@ function App() {
     const isEditingInvoice = Boolean(editingInvoice?.invoiceKey)
 
     try {
+      if (!vehicleNumberRegex.test(form.vehicleNumber)) {
+        throw new Error('Enter a valid vehicle number like MH12AB1234.')
+      }
+
       const response = await appFetch('/api/invoices/generate', {
         method: 'POST',
         headers: {
@@ -700,11 +721,17 @@ function App() {
   }
 
   async function handleDeleteInvoice(invoice) {
-    const confirmed = window.confirm(`Delete invoice ${invoice.invoiceNumber}? This will remove its history and generated files.`)
-    if (!confirmed) {
-      return
-    }
+    setPendingDelete({
+      type: 'invoice',
+      invoice,
+      title: `Delete invoice ${invoice.invoiceNumber}?`,
+      message: 'This removes the invoice from history and deletes its generated Excel/PDF files.',
+      detail: 'Only the latest invoice can be deleted, so the server will still protect older invoice numbers.',
+      confirmLabel: 'Delete invoice',
+    })
+  }
 
+  async function confirmDeleteInvoice(invoice) {
     setHistoryActionBusyKey(invoice.invoiceKey)
     setHistoryError('')
 
@@ -726,7 +753,9 @@ function App() {
 
       await refreshHistory()
       await refreshEwayReadiness()
+      setPendingDelete(null)
     } catch (deleteError) {
+      setPendingDelete(null)
       setHistoryError(deleteError.message)
     } finally {
       setHistoryActionBusyKey('')
@@ -745,7 +774,7 @@ function App() {
       return
     }
 
-    setForm((current) => ({ ...current, [name]: value }))
+    setForm((current) => ({ ...current, [name]: name === 'vehicleNumber' ? value.toUpperCase().replace(/\s+/g, '') : value }))
   }
 
   function updateLineItem(id, field, value) {
@@ -883,17 +912,23 @@ function App() {
     if (!editingBuyerCode) {
       return
     }
-    const confirmed = window.confirm(`Delete buyer ${editingBuyerCode}?`)
-    if (!confirmed) {
-      return
-    }
+    setPendingDelete({
+      type: 'buyer',
+      buyerCode: editingBuyerCode,
+      title: `Delete buyer ${editingBuyerCode}?`,
+      message: 'This removes the buyer from the master list.',
+      detail: 'Buyers already used in invoice history cannot be deleted.',
+      confirmLabel: 'Delete buyer',
+    })
+  }
 
+  async function confirmDeleteBuyer(buyerCode) {
     setSavingBuyer(true)
     setBuyerError('')
     setBuyerStatus('')
 
     try {
-      const response = await adminFetch(`/api/buyers/${editingBuyerCode}`, { method: 'DELETE' })
+      const response = await adminFetch(`/api/buyers/${buyerCode}`, { method: 'DELETE' })
       const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete buyer.')
@@ -902,7 +937,9 @@ function App() {
       await refreshMasters()
       startBuyerCreate()
       setBuyerStatus('Buyer deleted.')
+      setPendingDelete(null)
     } catch (deleteError) {
+      setPendingDelete(null)
       setBuyerError(deleteError.message)
     } finally {
       setSavingBuyer(false)
@@ -913,17 +950,23 @@ function App() {
     if (!editingItemCode) {
       return
     }
-    const confirmed = window.confirm(`Delete item ${editingItemCode}?`)
-    if (!confirmed) {
-      return
-    }
+    setPendingDelete({
+      type: 'item',
+      itemCode: editingItemCode,
+      title: `Delete item ${editingItemCode}?`,
+      message: 'This removes the item from the master list.',
+      detail: 'Items already used in invoice history cannot be deleted.',
+      confirmLabel: 'Delete item',
+    })
+  }
 
+  async function confirmDeleteItem(itemCode) {
     setSavingItem(true)
     setItemError('')
     setItemStatus('')
 
     try {
-      const response = await adminFetch(`/api/items/${editingItemCode}`, { method: 'DELETE' })
+      const response = await adminFetch(`/api/items/${itemCode}`, { method: 'DELETE' })
       const data = await readResponseJson(response)
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete item.')
@@ -932,12 +975,44 @@ function App() {
       await refreshMasters()
       startItemCreate()
       setItemStatus('Item deleted.')
+      setPendingDelete(null)
     } catch (deleteError) {
+      setPendingDelete(null)
       setItemError(deleteError.message)
     } finally {
       setSavingItem(false)
     }
   }
+
+  function closeDeleteModal() {
+    if (historyActionBusyKey || savingBuyer || savingItem) {
+      return
+    }
+
+    setPendingDelete(null)
+  }
+
+  function confirmPendingDelete() {
+    if (!pendingDelete) {
+      return
+    }
+
+    if (pendingDelete.type === 'invoice') {
+      confirmDeleteInvoice(pendingDelete.invoice)
+      return
+    }
+
+    if (pendingDelete.type === 'buyer') {
+      confirmDeleteBuyer(pendingDelete.buyerCode)
+      return
+    }
+
+    if (pendingDelete.type === 'item') {
+      confirmDeleteItem(pendingDelete.itemCode)
+    }
+  }
+
+  const deleteBusy = Boolean(historyActionBusyKey || savingBuyer || savingItem)
 
   const generatedEwayState = result
     ? getEwayDownloadState({
@@ -1083,8 +1158,13 @@ function App() {
                   value={form.vehicleNumber}
                   onChange={updateInvoiceField}
                   placeholder="MH12AB1234"
+                  pattern={vehicleNumberPattern}
+                  title="Use an Indian vehicle number like MH12AB1234."
                   required
                 />
+                <small className="field-hint">
+                  Format example: MH12AB1234. Spaces are removed automatically.
+                </small>
               </label>
 
               <label>
@@ -1110,6 +1190,9 @@ function App() {
               </div>
 
               <p className="hint-text">Current Excel template supports up to {maxLineItems} item rows.</p>
+              {form.lineItems.length >= maxLineItems ? (
+                <p className="inline-warning">Maximum {maxLineItems} item rows reached for this Excel template.</p>
+              ) : null}
 
               <div className="line-items-list">
                 {computedLines.map((line, index) => (
@@ -1370,7 +1453,7 @@ function App() {
           setHistorySearch={setHistorySearch}
         />
       ) : null}
-      {paymentModalOpen ? (
+      {activeView === 'history' && paymentModalOpen ? (
         <PaymentModal
           paymentSummary={paymentSummary}
           paymentPasswordInput={paymentPasswordInput}
@@ -1379,6 +1462,17 @@ function App() {
           markingPaid={markingPaid}
           onClose={closePaymentModal}
           onConfirm={handleMarkPaid}
+        />
+      ) : null}
+      {pendingDelete ? (
+        <DeleteConfirmModal
+          title={pendingDelete.title}
+          message={pendingDelete.message}
+          detail={pendingDelete.detail}
+          confirmLabel={pendingDelete.confirmLabel}
+          busy={deleteBusy}
+          onCancel={closeDeleteModal}
+          onConfirm={confirmPendingDelete}
         />
       ) : null}
 

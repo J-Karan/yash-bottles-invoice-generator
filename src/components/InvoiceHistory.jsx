@@ -76,7 +76,7 @@ export function InvoiceHistory({
         <input
           value={historySearch}
           onChange={(event) => setHistorySearch(event.target.value)}
-          placeholder="Invoice no, buyer, vehicle, GSTIN"
+          placeholder="Invoice no, buyer, date, vehicle, GSTIN"
         />
       </label>
 

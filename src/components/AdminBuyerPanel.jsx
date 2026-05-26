@@ -47,6 +47,9 @@ export function AdminBuyerPanel({
               <small>{buyer.GSTIN || 'No GSTIN saved'}</small>
             </button>
           ))}
+          {!filteredBuyers.length ? (
+            <p className="empty-state">No buyers match this search.</p>
+          ) : null}
         </div>
       </section>
 
