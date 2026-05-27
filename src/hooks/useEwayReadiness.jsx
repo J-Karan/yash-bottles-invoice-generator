@@ -10,7 +10,6 @@ function useEwayReadiness({
   setHistoryError,
 }) {
   const [ewayReadiness, setEwayReadiness] = useState([])
-  const [ewaySummary, setEwaySummary] = useState({ total: 0, ready: 0, needsInput: 0 })
   const [ewayLoading, setEwayLoading] = useState(false)
   const [ewayError, setEwayError] = useState('')
   const [ewayDistanceOverrides, setEwayDistanceOverrides] = useState({})
@@ -32,7 +31,6 @@ function useEwayReadiness({
       }
 
       setEwayReadiness(Array.isArray(data.invoices) ? data.invoices : [])
-      setEwaySummary(data.summary || { total: 0, ready: 0, needsInput: 0 })
     } catch (loadError) {
       setEwayError(loadError.message)
     } finally {
@@ -45,21 +43,8 @@ function useEwayReadiness({
     setEwayDistanceOverrides({})
   }
 
-  function updateEwayDistance(invoiceKey, value) {
-    setEwayDistanceOverrides((current) => ({
-      ...current,
-      [invoiceKey]: value,
-    }))
-  }
-
   function getEwayDistance(invoice) {
     return ewayDistanceOverrides[invoice.invoiceKey] ?? (invoice.distanceKm ? String(invoice.distanceKm) : '')
-  }
-
-  function canDownloadEwayJson(invoice) {
-    const distance = Number(getEwayDistance(invoice))
-    const unresolved = (invoice.missingFields || []).filter((field) => field !== 'distance_km')
-    return unresolved.length === 0 && Number.isFinite(distance) && distance > 0
   }
 
   function buildEwayJsonUrl(invoice) {
@@ -119,17 +104,13 @@ function useEwayReadiness({
   }
 
   return {
-    canDownloadEwayJson,
     clearEwayReadiness,
     downloadEwayJson,
     ewayError,
     ewayLoading,
-    ewayReadiness,
-    ewaySummary,
     getEwayDownloadState,
     refreshEwayReadiness,
     renderEwayJsonAction,
-    updateEwayDistance,
   }
 }
 

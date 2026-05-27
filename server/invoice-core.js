@@ -35,7 +35,7 @@ import {
   deleteInvoiceArtifactsLegacyNumericMonth,
   fileExists,
 } from './invoice-artifacts.js'
-import { formatMoney, sanitizeLine } from './invoice-formatting.js'
+import { sanitizeLine } from './invoice-formatting.js'
 import { generatePdfInvoice } from './pdf-generator.js'
 
 let db
