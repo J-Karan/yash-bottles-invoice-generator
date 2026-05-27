@@ -40,42 +40,10 @@ async function waitForServer(url) {
 function runPlaywright(args) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [playwrightCli, 'test', ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: 'inherit',
     })
-    let settled = false
-    let output = ''
-
-    function handleOutput(chunk, stream) {
-      const text = chunk.toString()
-      output += text
-      stream.write(text)
-      const hasFailureSummary = /\d+\s+failed/.test(output)
-      const hasPassSummary = /\d+\s+passed/.test(output)
-      if (!settled && (hasFailureSummary || hasPassSummary)) {
-        settled = true
-        setTimeout(() => {
-          stopProcess(child).finally(() => resolve(hasFailureSummary ? 1 : 0))
-        }, 1000).unref()
-      }
-    }
-
-    child.stdout.on('data', (chunk) => handleOutput(chunk, process.stdout))
-    child.stderr.on('data', (chunk) => handleOutput(chunk, process.stderr))
-    const fallbackTimer = setTimeout(() => {
-      if (settled) {
-        return
-      }
-      const hasFailureSummary = /\d+\s+failed/.test(output)
-      const hasPassSummary = /\d+\s+passed/.test(output)
-      settled = true
-      stopProcess(child).finally(() => resolve(hasFailureSummary || !hasPassSummary ? 1 : 0))
-    }, 45000)
     child.on('exit', (code) => {
-      if (!settled) {
-        settled = true
-        clearTimeout(fallbackTimer)
-        resolve(code ?? 1)
-      }
+      resolve(code ?? 1)
     })
   })
 }
@@ -90,7 +58,7 @@ function stopProcess(child) {
     child.once('exit', () => resolve())
     if (isWindows) {
       spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-      setTimeout(resolve, 1000).unref()
+      setTimeout(resolve, 1000)
       return
     }
 

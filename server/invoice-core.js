@@ -1,9 +1,7 @@
-import ExcelJS from 'exceljs'
 import fs from 'fs/promises'
 import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import { parse } from 'csv-parse/sync'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import {
   buyersPath,
   dataDir,
@@ -14,7 +12,6 @@ import {
   itemsPath,
   maxLineItems,
   paymentPassword,
-  templatePath,
 } from './config.js'
 import {
   buildInvoiceLines,
