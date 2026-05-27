@@ -9,7 +9,8 @@
     "dev:client": "vite",
     "build": "vite build",
     "start": "node server/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:ui": "node scripts/run-ui-tests.mjs"
   },
   "engines": {
     "node": ">=22.5.0"
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@babel/parser": "^7.29.7",
     "@babel/traverse": "^7.29.7",
+    "@playwright/test": "^1.60.0",
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^9.1.2",
     "vite": "^8.0.14"

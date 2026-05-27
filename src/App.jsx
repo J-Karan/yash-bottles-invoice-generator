@@ -7,6 +7,8 @@ import { InvoiceHistory } from './components/InvoiceHistory.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
 import { PaymentModal } from './components/PaymentModal.jsx'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher.jsx'
+import { useAdminAuth } from './hooks/useAdminAuth.js'
+import { useEwayReadiness } from './hooks/useEwayReadiness.jsx'
 import {
   buildShipToOptions,
   createInitialInvoiceForm,
@@ -16,7 +18,6 @@ import {
   emptyItemForm,
   formatDisplayDate,
   formatMoney,
-  getStoredAdminToken,
   getStoredAppToken,
   maxLineItems,
   resolveShipToOptionId,
@@ -24,7 +25,6 @@ import {
 } from './invoice-utils.js'
 import './App.css'
 
-const ewayBillPortalUrl = 'https://ewaybillgst.gov.in/Login.aspx'
 const vehicleNumberPattern = '^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$'
 const vehicleNumberRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/
 
@@ -57,11 +57,6 @@ function App() {
   const [itemError, setItemError] = useState('')
   const [editingBuyerCode, setEditingBuyerCode] = useState('')
   const [editingItemCode, setEditingItemCode] = useState('')
-  const [adminToken, setAdminToken] = useState(getStoredAdminToken)
-  const [adminPasswordInput, setAdminPasswordInput] = useState('')
-  const [showAdminPassword, setShowAdminPassword] = useState(false)
-  const [authBusy, setAuthBusy] = useState(false)
-  const [authError, setAuthError] = useState('')
   const [buyerSearch, setBuyerSearch] = useState('')
   const [itemSearch, setItemSearch] = useState('')
   const [invoiceHistory, setInvoiceHistory] = useState([])
@@ -75,11 +70,42 @@ function App() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [paymentPasswordInput, setPaymentPasswordInput] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
-  const [ewayReadiness, setEwayReadiness] = useState([])
-  const [ewaySummary, setEwaySummary] = useState({ total: 0, ready: 0, needsInput: 0 })
-  const [ewayLoading, setEwayLoading] = useState(false)
-  const [ewayError, setEwayError] = useState('')
-  const [ewayDistanceOverrides, setEwayDistanceOverrides] = useState({})
+  const {
+    adminFetch,
+    adminPasswordInput,
+    adminToken,
+    authBusy,
+    authError,
+    clearAdminToken,
+    handleAdminLogin,
+    handleAdminLogout,
+    setAdminPasswordInput,
+    setShowAdminPassword,
+    showAdminPassword,
+  } = useAdminAuth({
+    appFetch,
+    appToken,
+    clearAdminWorkspace: () => {
+      setEditingBuyerCode('')
+      setEditingItemCode('')
+    },
+    readResponseJson,
+  })
+  const {
+    clearEwayReadiness,
+    downloadEwayJson,
+    ewayError,
+    ewayLoading,
+    getEwayDownloadState,
+    refreshEwayReadiness,
+    renderEwayJsonAction,
+  } = useEwayReadiness({
+    appFetch,
+    downloadProtectedFile,
+    readResponseJson,
+    setDefaultDownloadError: setError,
+    setHistoryError,
+  })
 
   useEffect(() => {
     if (!appToken) {
@@ -90,14 +116,6 @@ function App() {
 
     verifyAppSession()
   }, [appToken])
-
-  useEffect(() => {
-    if (!adminToken) {
-      return
-    }
-
-    verifyAdminSession()
-  }, [adminToken])
 
   useEffect(() => {
     if (activeView === 'history') {
@@ -230,11 +248,6 @@ function App() {
     )
   }, [historySearch, invoiceHistory])
 
-  const ewayReadinessByKey = useMemo(
-    () => new Map(ewayReadiness.map((invoice) => [invoice.invoiceKey, invoice])),
-    [ewayReadiness],
-  )
-
   async function verifyAppSession() {
     setAppSessionChecking(true)
     try {
@@ -299,11 +312,11 @@ function App() {
     localStorage.removeItem('invoiceAppToken')
     localStorage.removeItem('invoiceAdminToken')
     setAppToken('')
-    setAdminToken('')
+    clearAdminToken()
     setBuyers([])
     setItems([])
     setInvoiceHistory([])
-    setEwayReadiness([])
+    clearEwayReadiness()
     setResult(null)
     setEditingInvoice(null)
     setLoginPassword('')
@@ -402,104 +415,11 @@ function App() {
     }
   }
 
-  async function refreshEwayReadiness() {
-    setEwayLoading(true)
-    setEwayError('')
-
-    try {
-      const response = await appFetch('/api/eway/readiness')
-      const data = await readResponseJson(response)
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load E-way readiness.')
-      }
-
-      setEwayReadiness(Array.isArray(data.invoices) ? data.invoices : [])
-      setEwaySummary(data.summary || { total: 0, ready: 0, needsInput: 0 })
-    } catch (loadError) {
-      setEwayError(loadError.message)
-    } finally {
-      setEwayLoading(false)
-    }
-  }
-
   function resetInvoiceWorkspace() {
     setEditingInvoice(null)
     setResult(null)
     setError('')
     setForm(syncInvoiceForm(createInitialInvoiceForm(), buyers, items))
-  }
-
-  function updateEwayDistance(invoiceKey, value) {
-    setEwayDistanceOverrides((current) => ({
-      ...current,
-      [invoiceKey]: value,
-    }))
-  }
-
-  function getEwayDistance(invoice) {
-    return ewayDistanceOverrides[invoice.invoiceKey] ?? (invoice.distanceKm ? String(invoice.distanceKm) : '')
-  }
-
-  function canDownloadEwayJson(invoice) {
-    const distance = Number(getEwayDistance(invoice))
-    const unresolved = (invoice.missingFields || []).filter((field) => field !== 'distance_km')
-    return unresolved.length === 0 && Number.isFinite(distance) && distance > 0
-  }
-
-  function buildEwayJsonUrl(invoice) {
-    const params = new URLSearchParams()
-    const distance = getEwayDistance(invoice)
-    if (distance) {
-      params.set('distanceKm', distance)
-    }
-
-    return `/api/eway/invoices/${encodeURIComponent(invoice.invoiceKey)}/bulk-json?${params.toString()}`
-  }
-
-  function downloadEwayJson(invoice, setDownloadError = setError) {
-    window.open(ewayBillPortalUrl, '_blank', 'noopener,noreferrer')
-    downloadProtectedFile(buildEwayJsonUrl(invoice), `${invoice.invoiceKey}-eway.json`, setDownloadError)
-  }
-
-  function getEwayDownloadState(invoice) {
-    if (!invoice?.pdfAvailable) {
-      return { canDownload: false, reason: 'PDF missing', readiness: null }
-    }
-
-    const readiness = ewayReadinessByKey.get(invoice.invoiceKey)
-    if (!readiness) {
-      return { canDownload: false, reason: ewayLoading ? 'Checking readiness' : 'Readiness unavailable', readiness: null }
-    }
-
-    const distance = Number(getEwayDistance(readiness))
-    const unresolved = (readiness.missingFields || []).filter((field) => field !== 'distance_km')
-
-    if (unresolved.length) {
-      return { canDownload: false, reason: `Missing ${unresolved.join(', ')}`, readiness }
-    }
-    if (!Number.isFinite(distance) || distance <= 0) {
-      return { canDownload: false, reason: 'Missing distance', readiness }
-    }
-
-    return { canDownload: true, reason: '', readiness }
-  }
-
-  function renderEwayJsonAction(invoice) {
-    const state = getEwayDownloadState(invoice)
-
-    if (state.canDownload) {
-      return (
-        <button
-          className="text-button history-action-eway"
-          type="button"
-          onClick={() => downloadEwayJson(state.readiness, setHistoryError)}
-        >
-          E-way JSON
-        </button>
-      )
-    }
-
-    return <span className="history-file-missing history-action-eway">E-way JSON: {state.reason}</span>
   }
 
   function openPaymentModal() {
@@ -549,94 +469,6 @@ function App() {
       setPaymentError(payError.message)
     } finally {
       setMarkingPaid(false)
-    }
-  }
-
-  async function verifyAdminSession() {
-    try {
-      const response = await appFetch('/api/admin/session', {
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        clearAdminSession()
-      }
-    } catch {
-      clearAdminSession()
-    }
-  }
-
-  async function adminFetch(url, options = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        'X-Invoice-Session': appToken,
-        Authorization: `Bearer ${adminToken}`,
-      },
-    })
-
-    if (response.status === 401) {
-      clearAdminSession()
-    }
-
-    return response
-  }
-
-  function clearAdminSession() {
-    localStorage.removeItem('invoiceAdminToken')
-    setAdminToken('')
-    setAuthError('Admin session ended. Log in again.')
-  }
-
-  async function handleAdminLogin(event) {
-    event.preventDefault()
-    setAuthBusy(true)
-    setAuthError('')
-
-    try {
-      const response = await appFetch('/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password: adminPasswordInput }),
-      })
-      const data = await readResponseJson(response)
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to log in.')
-      }
-
-      localStorage.setItem('invoiceAdminToken', data.token)
-      setAdminToken(data.token)
-      setAdminPasswordInput('')
-      setShowAdminPassword(false)
-    } catch (loginError) {
-      setAuthError(loginError.message)
-    } finally {
-      setAuthBusy(false)
-    }
-  }
-
-  async function handleAdminLogout() {
-    try {
-      await appFetch('/api/admin/logout', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-        },
-      })
-    } catch {
-      // Ignore logout failures and clear the local session.
-    } finally {
-      localStorage.removeItem('invoiceAdminToken')
-      setAdminToken('')
-      setAuthError('')
-      setShowAdminPassword(false)
-      setEditingBuyerCode('')
-      setEditingItemCode('')
     }
   }
 

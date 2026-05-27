@@ -11,6 +11,8 @@ data/**
 debug/
 *.log
 snapshots/*.zip
+test-results/
+playwright-report/
 .env
 .env.local
 !.env.example
