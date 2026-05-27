@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { formatDate, formatMoney, numberToIndianWords, sanitizeLine } from './invoice-formatting.js'
 

@@ -203,6 +203,11 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   await expectAnyVisibleText(page, 'Acme Packaging')
   await page.screenshot({ path: testInfo.outputPath('history-tab.png'), fullPage: true })
 
+  await page.getByRole('button', { name: 'Delete' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Delete invoice 001/2026-27?' })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('delete-confirmation-modal.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
   await page.getByRole('button', { name: 'Mark Paid' }).click()
   await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('payment-modal.png'), fullPage: true })
