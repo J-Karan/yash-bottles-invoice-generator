@@ -38,6 +38,12 @@ import {
 } from './invoice-core.js'
 
 const app = express()
+const allowedCorsOrigins = new Set(
+  (process.env.CORS_ORIGIN || 'https://invoice.yashbottles.in,http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+)
 const adminLoginLimiter = createRateLimiter({
   windowMs: 1000 * 60 * 15,
   maxAttempts: 8,
@@ -54,8 +60,45 @@ const appLoginLimiter = createRateLimiter({
   message: 'Too many login attempts. Try again later.',
 })
 
-app.use(cors())
+app.disable('x-powered-by')
+app.use(securityHeaders)
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedCorsOrigins.has(origin)) {
+      callback(null, true)
+      return
+    }
+
+    callback(null, false)
+  },
+}))
 app.use(express.json())
+
+function securityHeaders(_req, res, next) {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "manifest-src 'self'",
+      'upgrade-insecure-requests',
+    ].join('; '),
+  )
+  next()
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, storage: 'sqlite' })
