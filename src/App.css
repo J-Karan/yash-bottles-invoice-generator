@@ -488,6 +488,13 @@
   border-color: var(--accent);
 }
 
+.form-panel input:disabled,
+.form-panel select:disabled {
+  cursor: not-allowed;
+  background: rgba(244, 232, 221, 0.62);
+  color: var(--muted);
+}
+
 .calc-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

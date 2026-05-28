@@ -1001,7 +1001,17 @@ function App() {
 
               <label>
                 <span>Invoice date</span>
-                <input name="invoiceDate" type="date" value={form.invoiceDate} onChange={updateInvoiceField} required />
+                <input
+                  name="invoiceDate"
+                  type="date"
+                  value={form.invoiceDate}
+                  onChange={updateInvoiceField}
+                  disabled={Boolean(editingInvoice)}
+                  required
+                />
+                {editingInvoice ? (
+                  <small className="field-hint">Date is locked while editing to keep invoice numbering compliant.</small>
+                ) : null}
               </label>
             </div>
 
