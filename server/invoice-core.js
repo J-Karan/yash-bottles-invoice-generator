@@ -1337,6 +1337,7 @@ async function buildInvoicePayload(input) {
 
     invoiceNumber = existingInvoice.invoice_number
     invoiceKey = existingInvoice.invoice_key
+    assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate)
   } else {
     invoiceNumber = await nextInvoiceNumber(invoiceDate)
     invoiceKey = invoiceNumber.replace('/', '-')
@@ -1377,6 +1378,21 @@ async function nextInvoiceNumber(invoiceDate) {
 
   const nextSerial = reserveNextSerial(suffix)
   return `${String(nextSerial).padStart(3, '0')}/${suffix}`
+}
+
+function assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate) {
+  const parsed = parseInvoiceNumber(invoiceNumber)
+  if (!parsed?.financialYear) {
+    throw new Error(`Unable to determine financial year for invoice ${invoiceNumber}.`)
+  }
+
+  const dateFinancialYear = deriveFinancialYearSuffix(invoiceDate)
+  if (dateFinancialYear !== parsed.financialYear) {
+    throw new Error(
+      `Invoice ${invoiceNumber} belongs to financial year ${parsed.financialYear}. ` +
+        `Choose a date within ${parsed.financialYear}, or create a new invoice for ${dateFinancialYear}.`,
+    )
+  }
 }
 
 async function saveInvoiceHistory(invoice) {

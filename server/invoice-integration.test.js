@@ -43,6 +43,26 @@ describe('buildInvoicePayload integration', () => {
     assert.equal(payload.buyer.Buyer_Code, draft.buyerCode)
     assert.equal(payload.lines.length, draft.lineItems.length)
   })
+
+  it('rejects edited invoice dates outside the invoice financial year', async () => {
+    const history = await readInvoiceHistory(1)
+    assert.ok(history.length > 0, 'expected at least one invoice in history')
+
+    const existing = history[0]
+    const financialYearStart = existing.invoiceNumber.match(/\/(\d{4})-\d{2}$/)?.[1]
+    assert.ok(financialYearStart, `expected financial year suffix in ${existing.invoiceNumber}`)
+
+    const draft = await readInvoiceDraft(existing.invoiceKey)
+    await assert.rejects(
+      () =>
+        buildInvoicePayload({
+          ...draft,
+          invoiceDate: `${financialYearStart}-03-31`,
+          editInvoiceKey: existing.invoiceKey,
+        }),
+      /belongs to financial year/,
+    )
+  })
 })
 
 describe('E-way readiness integration', () => {
