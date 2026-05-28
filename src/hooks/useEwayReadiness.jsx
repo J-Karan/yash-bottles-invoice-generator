@@ -57,9 +57,15 @@ function useEwayReadiness({
     return `/api/eway/invoices/${encodeURIComponent(invoice.invoiceKey)}/bulk-json?${params.toString()}`
   }
 
-  function downloadEwayJson(invoice, setDownloadError = setDefaultDownloadError) {
-    window.open(ewayBillPortalUrl, '_blank', 'noopener,noreferrer')
-    downloadProtectedFile(buildEwayJsonUrl(invoice), `${invoice.invoiceKey}-eway.json`, setDownloadError)
+  async function downloadEwayJson(invoice, setDownloadError = setDefaultDownloadError) {
+    const downloaded = await downloadProtectedFile(
+      buildEwayJsonUrl(invoice),
+      `${invoice.invoiceKey}-eway.json`,
+      setDownloadError,
+    )
+    if (downloaded) {
+      window.open(ewayBillPortalUrl, '_blank', 'noopener,noreferrer')
+    }
   }
 
   function getEwayDownloadState(invoice) {

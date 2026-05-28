@@ -1339,7 +1339,7 @@ async function buildInvoicePayload(input) {
     invoiceKey = existingInvoice.invoice_key
     assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate)
   } else {
-    invoiceNumber = await nextInvoiceNumber(invoiceDate)
+    invoiceNumber = await previewNextInvoiceNumber(invoiceDate)
     invoiceKey = invoiceNumber.replace('/', '-')
   }
 
@@ -1359,25 +1359,44 @@ async function buildInvoicePayload(input) {
   }
 }
 
-async function nextInvoiceNumber(invoiceDate) {
+async function previewNextInvoiceNumber(invoiceDate) {
   await dbReady
   const suffix = deriveFinancialYearSuffix(invoiceDate)
+  const existing = db.prepare('SELECT next_serial FROM invoice_sequences WHERE financial_year = ?').get(suffix)
+  const nextSerial = existing?.next_serial ?? 1
 
-  const reserveNextSerial = withTransaction((financialYear) => {
-    const existing = db.prepare('SELECT next_serial FROM invoice_sequences WHERE financial_year = ?').get(financialYear)
-    const nextSerial = existing?.next_serial ?? 1
-
-    if (existing) {
-      db.prepare('UPDATE invoice_sequences SET next_serial = ? WHERE financial_year = ?').run(nextSerial + 1, financialYear)
-    } else {
-      db.prepare('INSERT INTO invoice_sequences (financial_year, next_serial) VALUES (?, ?)').run(financialYear, 2)
-    }
-
-    return nextSerial
-  })
-
-  const nextSerial = reserveNextSerial(suffix)
   return `${String(nextSerial).padStart(3, '0')}/${suffix}`
+}
+
+function reserveInvoiceNumberForNewPayload(payload, existingInvoice) {
+  if (existingInvoice) {
+    return
+  }
+
+  const parsed = parseInvoiceNumber(payload.invoiceNumber)
+  if (!parsed?.financialYear) {
+    throw new Error(`Unable to determine financial year for invoice ${payload.invoiceNumber}.`)
+  }
+
+  const dateFinancialYear = deriveFinancialYearSuffix(payload.invoiceDate)
+  if (dateFinancialYear !== parsed.financialYear) {
+    throw new Error(`Invoice ${payload.invoiceNumber} does not match invoice date financial year ${dateFinancialYear}.`)
+  }
+
+  const existingSequence = db.prepare('SELECT next_serial FROM invoice_sequences WHERE financial_year = ?').get(parsed.financialYear)
+  const nextSerial = existingSequence?.next_serial ?? 1
+  if (parsed.serial !== nextSerial) {
+    throw new Error(
+      `Invoice number ${payload.invoiceNumber} is no longer available. ` +
+        `Refresh and generate again to use ${String(nextSerial).padStart(3, '0')}/${parsed.financialYear}.`,
+    )
+  }
+
+  if (existingSequence) {
+    db.prepare('UPDATE invoice_sequences SET next_serial = ? WHERE financial_year = ?').run(nextSerial + 1, parsed.financialYear)
+  } else {
+    db.prepare('INSERT INTO invoice_sequences (financial_year, next_serial) VALUES (?, ?)').run(parsed.financialYear, 2)
+  }
 }
 
 function assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate) {
@@ -1399,11 +1418,12 @@ async function saveInvoiceHistory(invoice) {
   await dbReady
 
   const persistInvoice = withTransaction((payload) => {
-    const existingPayment = db.prepare(`
-      SELECT is_paid, paid_at, paid_amount, payment_batch_note, created_at
+    const existingInvoice = db.prepare(`
+      SELECT invoice_key, is_paid, paid_at, paid_amount, payment_batch_note, created_at
       FROM invoices
       WHERE invoice_number = ?
     `).get(payload.invoiceNumber)
+    reserveInvoiceNumberForNewPayload(payload, existingInvoice)
 
     db.prepare(`
       INSERT OR REPLACE INTO invoices (
@@ -1448,11 +1468,11 @@ async function saveInvoiceHistory(invoice) {
       payload.buyer.GSTIN || '',
       payload.buyer.Ship_To_Name || '',
       payload.buyer.Ship_To_Address || '',
-      existingPayment?.is_paid ?? 0,
-      existingPayment?.paid_at || '',
-      existingPayment?.paid_amount ?? 0,
-      existingPayment?.payment_batch_note || '',
-      existingPayment?.created_at || new Date().toISOString(),
+      existingInvoice?.is_paid ?? 0,
+      existingInvoice?.paid_at || '',
+      existingInvoice?.paid_amount ?? 0,
+      existingInvoice?.payment_batch_note || '',
+      existingInvoice?.created_at || new Date().toISOString(),
     )
 
     db.prepare('DELETE FROM invoice_lines WHERE invoice_number = ?').run(payload.invoiceNumber)

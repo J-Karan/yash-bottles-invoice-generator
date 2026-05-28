@@ -371,8 +371,10 @@ function App() {
       link.click()
       link.remove()
       URL.revokeObjectURL(objectUrl)
+      return true
     } catch (downloadError) {
       setDownloadError(downloadError.message)
+      return false
     }
   }
 

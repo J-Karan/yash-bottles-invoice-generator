@@ -8,9 +8,11 @@ process.env.PAYMENT_PASSWORD ||= 'test-payment-password'
 let buildEwayBulkJson
 let buildInvoicePayload
 let dbReady
+let readBuyers
 let readEwayReadiness
 let readInvoiceDraft
 let readInvoiceHistory
+let readItems
 
 before(async () => {
   const invoiceCore = await import('./invoice-core.js')
@@ -18,8 +20,10 @@ before(async () => {
 
   buildInvoicePayload = invoiceCore.buildInvoicePayload
   dbReady = invoiceCore.dbReady
+  readBuyers = invoiceCore.readBuyers
   readInvoiceDraft = invoiceCore.readInvoiceDraft
   readInvoiceHistory = invoiceCore.readInvoiceHistory
+  readItems = invoiceCore.readItems
   buildEwayBulkJson = ewayCore.buildEwayBulkJson
   readEwayReadiness = ewayCore.readEwayReadiness
 
@@ -27,6 +31,27 @@ before(async () => {
 })
 
 describe('buildInvoicePayload integration', () => {
+  it('does not reserve a new invoice number until history is saved', async () => {
+    const [buyer] = await readBuyers()
+    const [item] = await readItems()
+    assert.ok(buyer, 'expected at least one buyer master')
+    assert.ok(item, 'expected at least one item master')
+
+    const input = {
+      buyerCode: buyer.Buyer_Code,
+      shipToOptionId: buyer.Default_Ship_To_Option_Id,
+      vehicleNumber: 'MH12AB1234',
+      invoiceDate: '2026-05-27',
+      lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+    }
+
+    const first = await buildInvoicePayload(input)
+    const second = await buildInvoicePayload(input)
+
+    assert.equal(second.invoiceNumber, first.invoiceNumber)
+    assert.equal(second.invoiceKey, first.invoiceKey)
+  })
+
   it('preserves invoice number and key when editing an existing invoice', async () => {
     const history = await readInvoiceHistory(1)
     assert.ok(history.length > 0, 'expected at least one invoice in history')
