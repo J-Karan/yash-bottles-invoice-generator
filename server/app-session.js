@@ -3,9 +3,12 @@ import { safeEqual } from './secret-utils.js'
 import crypto from 'crypto'
 
 const sessionTtlMs = 1000 * 60 * 60 * 12
+const cleanupIntervalMs = 1000 * 60 * 15
 const appSessions = new Map()
+let lastCleanupAt = 0
 
 function createAppSession() {
+  pruneExpiredAppSessions()
   const token = crypto.randomBytes(32).toString('hex')
   appSessions.set(token, Date.now() + sessionTtlMs)
   return token
@@ -30,6 +33,7 @@ function invalidateAppSession(token) {
 }
 
 function requireAppSession(req, res, next) {
+  pruneExpiredAppSessions()
   const token = extractAppSessionToken(req)
   if (!token) {
     res.status(401).json({ error: 'Login required.' })
@@ -47,6 +51,23 @@ function requireAppSession(req, res, next) {
   next()
 }
 
+function pruneExpiredAppSessions(now = Date.now()) {
+  if (now - lastCleanupAt < cleanupIntervalMs) {
+    return
+  }
+
+  for (const [token, expiry] of appSessions.entries()) {
+    if (expiry < now) {
+      appSessions.delete(token)
+    }
+  }
+  lastCleanupAt = now
+}
+
+function getAppSessionCount() {
+  return appSessions.size
+}
+
 function credentialsMatch(username, password) {
   return safeEqual(username, appUsername) && safeEqual(password, appPassword)
 }
@@ -55,6 +76,8 @@ export {
   createAppSession,
   credentialsMatch,
   extractAppSessionToken,
+  getAppSessionCount,
   invalidateAppSession,
+  pruneExpiredAppSessions,
   requireAppSession,
 }

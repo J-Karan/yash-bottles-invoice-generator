@@ -2,10 +2,17 @@ function createRateLimiter(options = {}) {
   const windowMs = options.windowMs || 1000 * 60
   const maxAttempts = options.maxAttempts || 5
   const message = options.message || 'Too many attempts. Try again later.'
+  const cleanupIntervalMs = options.cleanupIntervalMs || windowMs
   const attempts = new Map()
+  let lastCleanupAt = 0
 
   return function rateLimit(req, res, next) {
     const now = Date.now()
+    if (now - lastCleanupAt >= cleanupIntervalMs) {
+      pruneExpiredAttempts(attempts, now)
+      lastCleanupAt = now
+    }
+
     const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.path}`
     const record = attempts.get(key) || { count: 0, resetAt: now + windowMs }
 
@@ -26,4 +33,12 @@ function createRateLimiter(options = {}) {
   }
 }
 
-export { createRateLimiter }
+function pruneExpiredAttempts(attempts, now = Date.now()) {
+  for (const [key, record] of attempts.entries()) {
+    if (record.resetAt <= now) {
+      attempts.delete(key)
+    }
+  }
+}
+
+export { createRateLimiter, pruneExpiredAttempts }
