@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.1.6',
+    title: 'Workspace header polish',
+    changes: [
+      'Added a cleaner branded workspace header with a subtitle and version pill.',
+      'Kept the header compact without restoring the buyer, item, or row metrics.',
+    ],
+  },
+  {
     version: '0.1.5',
     title: 'Workspace alignment update',
     changes: [

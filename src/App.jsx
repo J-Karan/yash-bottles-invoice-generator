@@ -906,7 +906,11 @@ function App() {
   return (
     <main className="app-shell">
       <section className="workspace-bar">
-        <p className="workspace-brand">Yash Bottles</p>
+        <div className="workspace-brand-block">
+          <p className="workspace-brand">Yash Bottles</p>
+          <span>Invoice Generator</span>
+        </div>
+        <span className="workspace-version">Version {appVersion}</span>
       </section>
 
       <WorkspaceSwitcher
