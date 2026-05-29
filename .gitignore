@@ -4,8 +4,7 @@ generated/
 data/**
 !data/
 !data/masters/
-!data/masters/Buyers_Master.csv
-!data/masters/Items_Master.csv
+!data/masters/.gitkeep
 !data/templates/
 !data/templates/Invoice Temp.xlsx
 debug/

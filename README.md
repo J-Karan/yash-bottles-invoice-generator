@@ -4,11 +4,12 @@ Invoice generation app for Yash Bottles with a React frontend and Express + SQLi
 
 ## Data Inputs
 
-- `data/masters/Buyers_Master.csv`
-- `data/masters/Items_Master.csv`
+- `data/masters/Buyers_Master.csv` - local private buyer master data
+- `data/masters/Items_Master.csv` - local private item/rate master data
 - `data/templates/Invoice Temp.xlsx`
 
-On first run, CSV data seeds SQLite automatically.
+On first run, local CSV data seeds SQLite automatically. Master CSV files are intentionally ignored
+by Git because they can contain private customer and pricing data.
 
 ## Backend Refactor (Current Structure)
 
