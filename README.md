@@ -206,31 +206,3 @@ This project is now ready to push to GitHub cleanly:
 
 Important: GitHub Pages cannot host this backend (it only serves static sites).  
 Use a Node host (for example Render/Railway/Fly/VM) connected to your GitHub repo.
-
-## Nyx Deployment
-
-Production is deployed from GitHub to the `nyx` host.
-
-Local deploy command:
-
-```powershell
-.\deploy-nyx.ps1
-```
-
-The script runs:
-
-```text
-ssh nyx "/home/ubuntu/deploy-ewb.sh"
-```
-
-On Nyx, the deployment uses:
-
-- app directory: `/home/ubuntu/ewb-invoice-system-git`
-- branch: `main`
-- service: `ewb-invoice`
-- runtime command: `/usr/bin/node server/index.js`
-- reverse proxy: Caddy to `127.0.0.1:5000`
-- public hosts: `invoice.yashbottles.in` and `152.67.2.68.nip.io`
-
-The remote deploy script fetches and fast-forwards `main`, runs `npm ci`, builds the frontend,
-runs `node --test`, restarts `ewb-invoice`, and reloads Caddy.
