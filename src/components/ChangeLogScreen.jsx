@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.1.4',
+    title: 'Workspace polish',
+    changes: [
+      'Updated typography and interactive feedback for daily use.',
+      'Added accessible modal keyboard behavior and invoice success notifications.',
+      'Replaced the large workspace hero with a compact summary bar.',
+    ],
+  },
+  {
     version: '0.1.3',
     title: 'Changelog layout update',
     changes: [

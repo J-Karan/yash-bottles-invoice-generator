@@ -124,6 +124,9 @@
   color: var(--ink);
   padding: 0 15px;
   font-size: 1rem;
+  transition:
+    border-color 0.15s ease,
+    outline-color 0.15s ease;
 }
 
 .login-panel input:focus {
@@ -403,8 +406,60 @@
   line-height: 1.45;
 }
 
-.workspace-hero {
+.workspace-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
   margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 252, 247, 0.78);
+  box-shadow: 0 18px 48px rgba(49, 34, 20, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.workspace-brand {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.workspace-bar-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workspace-bar-metrics > div {
+  min-width: 92px;
+  padding: 8px 12px;
+  border: 1px solid rgba(93, 65, 37, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.workspace-bar-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-bar-metrics strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 0.95rem;
 }
 
 .workspace-switcher {
@@ -427,6 +482,16 @@
   cursor: pointer;
   overflow-wrap: anywhere;
   text-align: center;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.view-chip:hover:not(.view-chip-active) {
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 4px 12px rgba(143, 52, 21, 0.12);
+  transform: translateY(-1px);
 }
 
 .view-chip-active {
@@ -737,6 +802,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    outline-color 0.15s ease;
 }
 
 .form-panel input:focus,
@@ -797,9 +865,25 @@
   border-radius: 18px;
   background: linear-gradient(135deg, #8f3415, #cf6d3e);
   color: #fff7ef;
+  cursor: pointer;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7a2c10, #b85a30);
+  box-shadow: 0 8px 24px rgba(143, 52, 21, 0.24);
+  transform: translateY(-1px);
+}
+
+.primary-button:active:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(143, 52, 21, 0.18);
+  transform: translateY(0);
 }
 
 .secondary-button,
@@ -816,6 +900,14 @@
   background: rgba(143, 52, 21, 0.1);
   color: var(--accent);
   font-weight: 700;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: rgba(143, 52, 21, 0.16);
+  color: #7a2c10;
 }
 
 .secondary-button:disabled {
@@ -828,6 +920,11 @@
   background: transparent;
   color: var(--accent);
   font-weight: 700;
+  transition: color 0.15s ease;
+}
+
+.text-button:hover:not(:disabled) {
+  color: #6f2a12;
 }
 
 .danger-button {
@@ -837,6 +934,14 @@
   background: rgba(177, 44, 32, 0.12);
   color: #8c2118;
   font-weight: 700;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: rgba(177, 44, 32, 0.2);
+  transform: translateY(-1px);
 }
 
 .danger-button:disabled {
@@ -888,6 +993,25 @@
   position: sticky;
   top: 20px;
   align-self: start;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  scrollbar-color: rgba(143, 52, 21, 0.3) rgba(93, 65, 37, 0.08);
+  scrollbar-width: thin;
+}
+
+.preview-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.preview-panel::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(93, 65, 37, 0.08);
+}
+
+.preview-panel::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(255, 252, 247, 0.9);
+  border-radius: 999px;
+  background: rgba(143, 52, 21, 0.3);
 }
 
 .line-items-section {
@@ -936,6 +1060,14 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.line-item-card:hover {
+  border-color: rgba(143, 52, 21, 0.22);
+  box-shadow: 0 10px 28px rgba(82, 44, 20, 0.08);
 }
 
 .line-item-layout {
@@ -1559,6 +1691,9 @@
   min-height: 46px;
   padding: 0 15px;
   font: inherit;
+  transition:
+    border-color 0.15s ease,
+    outline-color 0.15s ease;
 }
 
 .admin-list-card {
@@ -1573,6 +1708,14 @@
   background: rgba(255, 255, 255, 0.72);
   text-align: left;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.admin-list-card:hover:not(:disabled) {
+  border-color: rgba(143, 52, 21, 0.26);
+  box-shadow: 0 8px 22px rgba(82, 44, 20, 0.08);
 }
 
 .admin-list-card div {
@@ -1648,6 +1791,59 @@
   font-weight: 700;
   min-width: 0;
   text-align: center;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.download-actions a:hover,
+.download-actions button:hover:not(:disabled) {
+  background: #432c1d;
+  transform: translateY(-1px);
+}
+
+.success-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(58, 120, 63, 0.22);
+  border-radius: 18px;
+  background: rgba(58, 120, 63, 0.96);
+  box-shadow: 0 18px 42px rgba(32, 67, 35, 0.22);
+  color: #f5fff6;
+  font-weight: 800;
+  transform: translateX(-50%);
+  animation: toast-enter 0.18s ease-out;
+}
+
+.success-toast button {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 @media (max-width: 960px) {
@@ -1683,6 +1879,22 @@
 
   .preview-panel {
     position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .workspace-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-bar-metrics {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .workspace-bar-metrics > div {
+    flex: 1 1 120px;
   }
 
   .line-item-layout,

@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { formatMoney } from '../invoice-utils.js'
+import { useModalTrap } from '../hooks/useModalTrap.js'
 
 function PaymentModal({
   paymentSummary,
@@ -9,6 +11,9 @@ function PaymentModal({
   onClose,
   onConfirm,
 }) {
+  const modalRef = useRef(null)
+  useModalTrap(modalRef, () => onClose())
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => onClose()}>
       <form
@@ -16,6 +21,8 @@ function PaymentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-modal-title"
+        ref={modalRef}
+        tabIndex="-1"
         onSubmit={(event) => {
           event.preventDefault()
           onConfirm()

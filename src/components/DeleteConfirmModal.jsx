@@ -1,3 +1,6 @@
+import { useRef } from 'react'
+import { useModalTrap } from '../hooks/useModalTrap.js'
+
 function DeleteConfirmModal({
   title,
   message,
@@ -7,6 +10,13 @@ function DeleteConfirmModal({
   onCancel,
   onConfirm,
 }) {
+  const modalRef = useRef(null)
+  useModalTrap(modalRef, () => {
+    if (!busy) {
+      onCancel()
+    }
+  })
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => (busy ? null : onCancel())}>
       <section
@@ -14,6 +24,8 @@ function DeleteConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-modal-title"
+        ref={modalRef}
+        tabIndex="-1"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="panel-header">

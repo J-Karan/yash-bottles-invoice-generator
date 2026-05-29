@@ -7,6 +7,7 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal.jsx'
 import { InvoiceHistory } from './components/InvoiceHistory.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
 import { PaymentModal } from './components/PaymentModal.jsx'
+import { SuccessToast } from './components/SuccessToast.jsx'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher.jsx'
 import { useAdminAuth } from './hooks/useAdminAuth.js'
 import { useEwayReadiness } from './hooks/useEwayReadiness.jsx'
@@ -48,6 +49,7 @@ function App() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [successToast, setSuccessToast] = useState({ message: '', visible: false })
   const [editingInvoice, setEditingInvoice] = useState(null)
   const [historyActionBusyKey, setHistoryActionBusyKey] = useState('')
 
@@ -510,6 +512,10 @@ function App() {
         })
       }
       setResult(data)
+      setSuccessToast({
+        message: `Invoice ${data.invoice.invoiceNumber} ${isEditingInvoice ? 'updated' : 'generated'}`,
+        visible: true,
+      })
       await refreshHistory()
       await refreshEwayReadiness()
     } catch (submitError) {
@@ -899,42 +905,20 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero workspace-hero">
-        <div>
-          <p className="eyebrow">Yash Bottles</p>
-          <h1>Invoice generation and master data management in one workspace.</h1>
-          <p className="hero-copy">
-            Use the invoice tab for document generation and use the buyers or items tabs to maintain
-            live SQLite master data without editing CSV files manually.
-          </p>
-          <div className="hero-metrics">
-            <div>
-              <span>Buyers</span>
-              <strong>{buyers.length}</strong>
-            </div>
-            <div>
-              <span>Items</span>
-              <strong>{items.length}</strong>
-            </div>
-            <div>
-              <span>Invoice Rows</span>
-              <strong>{form.lineItems.length}</strong>
-            </div>
+      <section className="workspace-bar">
+        <p className="workspace-brand">Yash Bottles</p>
+        <div className="workspace-bar-metrics" aria-label="Workspace summary">
+          <div>
+            <span>Buyers</span>
+            <strong>{buyers.length}</strong>
           </div>
-        </div>
-        <div className="hero-badge">
-          <span>Live Storage</span>
-          <strong>SQLite-backed masters</strong>
-          <p>Invoice generation still uses the same payload and PDF behavior.</p>
-          <div className="hero-badge-grid">
-            <div>
-              <small>Buyer Source</small>
-              <b>SQLite</b>
-            </div>
-            <div>
-              <small>Item Source</small>
-              <b>SQLite</b>
-            </div>
+          <div>
+            <span>Items</span>
+            <strong>{items.length}</strong>
+          </div>
+          <div>
+            <span>Rows</span>
+            <strong>{form.lineItems.length}</strong>
           </div>
         </div>
       </section>
@@ -1376,6 +1360,11 @@ function App() {
           setItemSearch={setItemSearch}
         />
       ) : null}
+      <SuccessToast
+        message={successToast.message}
+        visible={successToast.visible}
+        onDismiss={() => setSuccessToast({ message: '', visible: false })}
+      />
     </main>
   )
 }

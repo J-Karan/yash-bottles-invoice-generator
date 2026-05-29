@@ -158,9 +158,10 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Version 0.1.3' })).toBeVisible()
-  await page.getByRole('button', { name: 'Version 0.1.3' }).click()
+  await expect(page.getByRole('button', { name: 'Version 0.1.4' })).toBeVisible()
+  await page.getByRole('button', { name: 'Version 0.1.4' }).click()
   await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
+  await expect(page.getByText('Version 0.1.4')).toBeVisible()
   await expect(page.getByText('Version 0.1.3')).toBeVisible()
   await expect(page.getByText('Version 0.1.2')).toBeVisible()
   await expect(page.getByText('Version 0.1.1')).toBeVisible()
@@ -187,6 +188,8 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await page.goto('/')
 
   await expect(page.getByRole('heading', { name: 'Invoice details' })).toBeVisible()
+  await expect(page.locator('.workspace-bar')).toBeVisible()
+  await expect(page.getByText('Yash Bottles')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('invoice-workspace.png'), fullPage: true })
 
   await page.getByLabel('Buyer name').selectOption('B002')
@@ -205,7 +208,12 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await page.getByLabel('Vehicle number').fill('MH12AB1234')
   await page.getByRole('button', { name: 'Generate invoice' }).click()
   await expect(page.getByText('Generated invoice')).toBeVisible()
+  await expect(page.getByText('Invoice 001/2026-27 generated')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Download Excel' })).toBeVisible()
+  const viewport = page.viewportSize()
+  if (!viewport || viewport.width > 960) {
+    await expect(page.locator('.preview-panel')).toHaveCSS('overflow-y', 'auto')
+  }
   await expectNoHorizontalOverflow(page)
 })
 
@@ -221,8 +229,28 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
 
   await page.getByRole('button', { name: 'Delete' }).first().click()
   await expect(page.getByRole('heading', { name: 'Delete invoice 001/2026-27?' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  const deleteFocusInsideModal = await page.evaluate(() => document.querySelector('.modal-card')?.contains(document.activeElement))
+  expect(deleteFocusInsideModal).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('heading', { name: 'Delete invoice 001/2026-27?' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Delete' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Delete invoice 001/2026-27?' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('delete-confirmation-modal.png'), fullPage: true })
   await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.getByRole('button', { name: 'Mark Paid' }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toBeVisible()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  const paymentFocusInsideModal = await page.evaluate(() => document.querySelector('.modal-card')?.contains(document.activeElement))
+  expect(paymentFocusInsideModal).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Mark Paid' }).click()
   await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toBeVisible()
