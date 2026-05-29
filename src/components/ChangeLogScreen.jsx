@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.1.3',
+    title: 'Changelog layout update',
+    changes: [
+      'Improved changelog scrolling and layout.',
+      'Kept the update history controls visible while reading release notes.',
+    ],
+  },
+  {
     version: '0.1.2',
     title: 'Stability update',
     changes: [
@@ -33,7 +41,7 @@ function ChangeLogScreen({ appVersion, onBackToLogin }) {
   const latestEntry = changeLogEntries[0]
 
   return (
-    <main className="login-shell">
+    <main className="login-shell changelog-page">
       <section className="changelog-shell">
         <aside className="changelog-hero">
           <div className="changelog-hero-top">
