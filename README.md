@@ -55,6 +55,12 @@ Run tests:
 npm test
 ```
 
+Run the full UI regression suite:
+
+```powershell
+npm run test:ui
+```
+
 ## Production Run
 
 Build frontend:
@@ -141,6 +147,25 @@ Example:
 The frontend now includes an **Invoice History** tab to review previously generated invoices
 and open available Excel/PDF files.
 
+Invoice history total amounts are kept on one line in the desktop table so large rupee values remain readable.
+
+## Software Version and Change Log
+
+The app uses `package.json` as the software update version source. The login screen displays the
+current version number, and clicking it opens the in-app change log before login.
+
+Current release:
+
+- `0.1.1` - login version link, in-app change log page, and cleaner invoice history total display
+- `0.1.0` - initial invoice workspace with invoice generation, Excel/PDF downloads, E-way JSON,
+  master data management, invoice history, and payment tracking
+
+When shipping a user-facing update:
+
+- bump `version` in `package.json` and `package-lock.json`
+- add a new entry to the frontend change log
+- run `npm test`, `npm run build`, and `npm run test:ui`
+
 ## Admin Access
 
 - App login endpoint: `POST /api/auth/login`
@@ -181,3 +206,31 @@ This project is now ready to push to GitHub cleanly:
 
 Important: GitHub Pages cannot host this backend (it only serves static sites).  
 Use a Node host (for example Render/Railway/Fly/VM) connected to your GitHub repo.
+
+## Nyx Deployment
+
+Production is deployed from GitHub to the `nyx` host.
+
+Local deploy command:
+
+```powershell
+.\deploy-nyx.ps1
+```
+
+The script runs:
+
+```text
+ssh nyx "/home/ubuntu/deploy-ewb.sh"
+```
+
+On Nyx, the deployment uses:
+
+- app directory: `/home/ubuntu/ewb-invoice-system-git`
+- branch: `main`
+- service: `ewb-invoice`
+- runtime command: `/usr/bin/node server/index.js`
+- reverse proxy: Caddy to `127.0.0.1:5000`
+- public hosts: `invoice.yashbottles.in` and `152.67.2.68.nip.io`
+
+The remote deploy script fetches and fast-forwards `main`, runs `npm ci`, builds the frontend,
+runs `node --test`, restarts `ewb-invoice`, and reloads Caddy.

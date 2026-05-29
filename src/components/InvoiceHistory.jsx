@@ -119,7 +119,7 @@ export function InvoiceHistory({
                     </td>
                     <td>{invoice.vehicleNumber}</td>
                     <td>{invoice.lineCount}</td>
-                    <td>{formatMoney(invoice.total)}</td>
+                    <td className="history-total-cell">{formatMoney(invoice.total)}</td>
                     <td>
                       <span className={`payment-pill ${invoice.isPaid ? 'payment-pill-paid' : 'payment-pill-unpaid'}`}>
                         {invoice.isPaid ? 'Paid' : 'Non paid'}

@@ -1,4 +1,5 @@
 function LoginScreen({
+  appVersion,
   loginUsername,
   setLoginUsername,
   loginPassword,
@@ -7,6 +8,7 @@ function LoginScreen({
   setShowLoginPassword,
   loginError,
   loginBusy,
+  onOpenChangeLog,
   onSubmit,
 }) {
   return (
@@ -76,6 +78,12 @@ function LoginScreen({
           <button className="primary-button login-submit" type="submit" disabled={loginBusy}>
             {loginBusy ? 'Signing in...' : 'Enter Workspace'}
           </button>
+
+          <div className="login-version-row">
+            <button className="login-version-link" type="button" onClick={onOpenChangeLog}>
+              Version {appVersion}
+            </button>
+          </div>
         </form>
       </section>
     </main>

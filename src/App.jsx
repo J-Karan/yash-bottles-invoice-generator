@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AdminAuthPanel } from './components/AdminAuthPanel.jsx'
 import { AdminBuyerPanel } from './components/AdminBuyerPanel.jsx'
 import { AdminItemPanel } from './components/AdminItemPanel.jsx'
+import { ChangeLogScreen } from './components/ChangeLogScreen.jsx'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal.jsx'
 import { InvoiceHistory } from './components/InvoiceHistory.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
@@ -23,10 +24,12 @@ import {
   resolveShipToOptionId,
   syncInvoiceForm,
 } from './invoice-utils.js'
+import packageInfo from '../package.json'
 import './App.css'
 
 const vehicleNumberPattern = '^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$'
 const vehicleNumberRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/
+const appVersion = packageInfo.version
 
 function App() {
   const [appToken, setAppToken] = useState(getStoredAppToken)
@@ -36,6 +39,7 @@ function App() {
   const [loginBusy, setLoginBusy] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showChangeLog, setShowChangeLog] = useState(false)
   const [activeView, setActiveView] = useState('invoice')
   const [buyers, setBuyers] = useState([])
   const [items, setItems] = useState([])
@@ -864,8 +868,13 @@ function App() {
   }
 
   if (!appToken) {
+    if (showChangeLog) {
+      return <ChangeLogScreen appVersion={appVersion} onBackToLogin={() => setShowChangeLog(false)} />
+    }
+
     return (
       <LoginScreen
+        appVersion={appVersion}
         loginUsername={loginUsername}
         setLoginUsername={setLoginUsername}
         loginPassword={loginPassword}
@@ -874,6 +883,7 @@ function App() {
         setShowLoginPassword={setShowLoginPassword}
         loginError={loginError}
         loginBusy={loginBusy}
+        onOpenChangeLog={() => setShowChangeLog(true)}
         onSubmit={handleAppLogin}
       />
     )

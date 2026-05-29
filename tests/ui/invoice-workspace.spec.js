@@ -158,6 +158,14 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Version 0.1.1' })).toBeVisible()
+  await page.getByRole('button', { name: 'Version 0.1.1' }).click()
+  await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
+  await expect(page.getByText('Version 0.1.1')).toBeVisible()
+  await expect(page.getByText('Version 0.1.0')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await page.getByRole('button', { name: 'Back to login' }).click()
+  await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
   await page.getByLabel('Username').fill('wrong')
   await page.getByLabel('Password').fill('wrong')
   await page.getByRole('button', { name: 'Enter Workspace' }).click()
@@ -201,6 +209,7 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   await page.getByRole('button', { name: 'Invoice History' }).click()
   await expect(page.getByRole('heading', { name: 'Invoice History' })).toBeVisible()
   await expectAnyVisibleText(page, 'Acme Packaging')
+  await expect(page.locator('.history-total-cell').first()).toHaveCSS('white-space', 'nowrap')
   await page.screenshot({ path: testInfo.outputPath('history-tab.png'), fullPage: true })
 
   await page.getByRole('button', { name: 'Delete' }).first().click()
