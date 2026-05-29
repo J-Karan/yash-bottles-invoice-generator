@@ -907,20 +907,6 @@ function App() {
     <main className="app-shell">
       <section className="workspace-bar">
         <p className="workspace-brand">Yash Bottles</p>
-        <div className="workspace-bar-metrics" aria-label="Workspace summary">
-          <div>
-            <span>Buyers</span>
-            <strong>{buyers.length}</strong>
-          </div>
-          <div>
-            <span>Items</span>
-            <strong>{items.length}</strong>
-          </div>
-          <div>
-            <span>Rows</span>
-            <strong>{form.lineItems.length}</strong>
-          </div>
-        </div>
       </section>
 
       <WorkspaceSwitcher

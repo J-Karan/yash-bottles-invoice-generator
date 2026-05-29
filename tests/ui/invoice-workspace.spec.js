@@ -158,9 +158,10 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Version 0.1.4' })).toBeVisible()
-  await page.getByRole('button', { name: 'Version 0.1.4' }).click()
+  await expect(page.getByRole('button', { name: 'Version 0.1.5' })).toBeVisible()
+  await page.getByRole('button', { name: 'Version 0.1.5' }).click()
   await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
+  await expect(page.getByText('Version 0.1.5')).toBeVisible()
   await expect(page.getByText('Version 0.1.4')).toBeVisible()
   await expect(page.getByText('Version 0.1.3')).toBeVisible()
   await expect(page.getByText('Version 0.1.2')).toBeVisible()
@@ -190,6 +191,9 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.getByRole('heading', { name: 'Invoice details' })).toBeVisible()
   await expect(page.locator('.workspace-bar')).toBeVisible()
   await expect(page.getByText('Yash Bottles')).toBeVisible()
+  const workspaceBrandFontSize = await page.locator('.workspace-brand').evaluate((element) => Number.parseFloat(window.getComputedStyle(element).fontSize))
+  expect(workspaceBrandFontSize).toBeGreaterThanOrEqual(21)
+  await expect(page.locator('.workspace-bar-metrics')).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('invoice-workspace.png'), fullPage: true })
 
   await page.getByLabel('Buyer name').selectOption('B002')
@@ -212,7 +216,16 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.getByRole('button', { name: 'Download Excel' })).toBeVisible()
   const viewport = page.viewportSize()
   if (!viewport || viewport.width > 960) {
-    await expect(page.locator('.preview-panel')).toHaveCSS('overflow-y', 'auto')
+    await expect(page.locator('.preview-panel')).toHaveCSS('overflow-y', 'visible')
+    const panelHeights = await page.evaluate(() => {
+      const formPanel = document.querySelector('.form-panel')
+      const previewPanel = document.querySelector('.preview-panel')
+      return {
+        form: formPanel?.getBoundingClientRect().height ?? 0,
+        preview: previewPanel?.getBoundingClientRect().height ?? 0,
+      }
+    })
+    expect(Math.abs(panelHeights.form - panelHeights.preview)).toBeLessThanOrEqual(1)
   }
   await expectNoHorizontalOverflow(page)
 })

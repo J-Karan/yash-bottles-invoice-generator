@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.1.5',
+    title: 'Workspace alignment update',
+    changes: [
+      'Improved workspace header and preview panel alignment.',
+      'Removed the top-bar metrics from the logged-in workspace.',
+      'Let the page handle invoice preview scrolling naturally.',
+    ],
+  },
+  {
     version: '0.1.4',
     title: 'Workspace polish',
     changes: [
