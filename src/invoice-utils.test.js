@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { formatDisplayDateTime, resolveShipToOptionId } from './invoice-utils.js'
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  getBusinessDateString,
+  resolveShipToOptionId,
+} from './invoice-utils.js'
 
 describe('resolveShipToOptionId', () => {
   it('keeps a valid selected ship-to option', () => {
@@ -31,5 +36,19 @@ describe('formatDisplayDateTime', () => {
 
     assert.match(formatted, /\bPM\b/)
     assert.doesNotMatch(formatted, /\b17:44\b/)
+  })
+})
+
+describe('date helpers', () => {
+  it('uses Asia/Kolkata for default invoice dates', () => {
+    const formatted = getBusinessDateString(new Date('2026-05-28T19:00:00.000Z'))
+
+    assert.equal(formatted, '2026-05-29')
+  })
+
+  it('formats date-only values without timezone shifting', () => {
+    const formatted = formatDisplayDate('2026-05-01')
+
+    assert.equal(formatted, '01 May 2026')
   })
 })

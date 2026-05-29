@@ -53,9 +53,39 @@ function createInitialInvoiceForm(defaultBuyerCode = '', defaultItemCode = '') {
     buyerCode: defaultBuyerCode,
     shipToOptionId: 'bill_to',
     vehicleNumber: '',
-    invoiceDate: new Date().toISOString().slice(0, 10),
+    invoiceDate: getBusinessDateString(),
     lineItems: [createLineItem(defaultItemCode)],
   }
+}
+
+function getBusinessDateString(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${byType.year}-${byType.month}-${byType.day}`
+}
+
+function parseDateOnly(value) {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  const isValid =
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() + 1 === month &&
+    parsed.getUTCDate() === day
+
+  return isValid ? { year, month, day } : null
 }
 
 function hasDistinctMasterShipTo(buyer) {
@@ -156,6 +186,17 @@ function formatDisplayDate(value) {
     return '--'
   }
 
+  const dateOnly = parseDateOnly(value)
+  if (dateOnly) {
+    const parsedUtc = new Date(Date.UTC(dateOnly.year, dateOnly.month - 1, dateOnly.day))
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(parsedUtc)
+  }
+
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
     return '--'
@@ -208,6 +249,7 @@ export {
   formatDisplayDate,
   formatDisplayDateTime,
   formatMoney,
+  getBusinessDateString,
   getStoredAdminToken,
   getStoredAppToken,
   maxLineItems,

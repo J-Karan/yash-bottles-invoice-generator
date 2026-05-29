@@ -8,6 +8,8 @@ process.env.PAYMENT_PASSWORD ||= 'test-payment-password'
 let buildEwayBulkJson
 let buildInvoicePayload
 let dbReady
+let deleteInvoiceHistory
+let generateAndSaveInvoice
 let readBuyers
 let readEwayReadiness
 let readInvoiceDraft
@@ -20,6 +22,8 @@ before(async () => {
 
   buildInvoicePayload = invoiceCore.buildInvoicePayload
   dbReady = invoiceCore.dbReady
+  deleteInvoiceHistory = invoiceCore.deleteInvoiceHistory
+  generateAndSaveInvoice = invoiceCore.generateAndSaveInvoice
   readBuyers = invoiceCore.readBuyers
   readInvoiceDraft = invoiceCore.readInvoiceDraft
   readInvoiceHistory = invoiceCore.readInvoiceHistory
@@ -87,6 +91,30 @@ describe('buildInvoicePayload integration', () => {
         }),
       /belongs to financial year/,
     )
+  })
+
+  it('publishes invoice artifacts after saving invoice history', async () => {
+    const [buyer] = await readBuyers()
+    const [item] = await readItems()
+    let generated
+    try {
+      generated = await generateAndSaveInvoice({
+        buyerCode: buyer.Buyer_Code,
+        shipToOptionId: buyer.Default_Ship_To_Option_Id,
+        vehicleNumber: 'MH12CD4321',
+        invoiceDate: '2026-05-29',
+        lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+      })
+
+      const saved = await readInvoiceDraft(generated.invoice.invoiceKey)
+      assert.equal(saved.invoiceNumber, generated.invoice.invoiceNumber)
+      assert.match(generated.files.excel, /\/downloads\/excel\/2026-27\/05-May\//)
+      assert.match(generated.files.pdf, /\/downloads\/pdf\/2026-27\/05-May\//)
+    } finally {
+      if (generated?.invoice?.invoiceKey) {
+        await deleteInvoiceHistory(generated.invoice.invoiceKey)
+      }
+    }
   })
 })
 

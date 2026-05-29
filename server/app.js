@@ -1,7 +1,6 @@
 import cors from 'cors'
 import express from 'express'
 import fsSync from 'fs'
-import fs from 'fs/promises'
 import path from 'path'
 import { createAdminSession, extractBearerToken, invalidateAdminSession, requireAdmin } from './admin-session.js'
 import {
@@ -17,22 +16,19 @@ import { createRateLimiter } from './rate-limit.js'
 import { safeEqual } from './secret-utils.js'
 import {
   buildInvoiceFileTargets,
-  buildInvoicePayload,
   createBuyer,
   createItem,
   dbReady,
   deleteBuyer,
   deleteInvoiceHistory,
   deleteItem,
-  generateExcelInvoice,
-  generatePdfInvoice,
+  generateAndSaveInvoice,
   markUnpaidInvoicesPaid,
   readBuyers,
   readInvoiceDraft,
   readInvoiceHistory,
   readItems,
   readPaymentSummary,
-  saveInvoiceHistory,
   updateBuyer,
   updateItem,
 } from './invoice-core.js'
@@ -337,24 +333,7 @@ app.delete('/api/items/:itemCode', requireAdmin, async (req, res) => {
 app.post('/api/invoices/generate', async (req, res) => {
   try {
     await dbReady
-    const invoicePayload = await buildInvoicePayload(req.body)
-    const fileTargets = buildInvoiceFileTargets(invoicePayload.invoiceDate, invoicePayload.invoiceKey)
-    await Promise.all([
-      fs.mkdir(fileTargets.excel.directoryPath, { recursive: true }),
-      fs.mkdir(fileTargets.pdf.directoryPath, { recursive: true }),
-    ])
-
-    await generateExcelInvoice(invoicePayload, fileTargets.excel.absolutePath)
-    await generatePdfInvoice(invoicePayload, fileTargets.pdf.absolutePath)
-    await saveInvoiceHistory(invoicePayload)
-
-    res.json({
-      invoice: invoicePayload,
-      files: {
-        excel: `/downloads/excel/${fileTargets.excel.relativeUrlPath}`,
-        pdf: `/downloads/pdf/${fileTargets.pdf.relativeUrlPath}`,
-      },
-    })
+    res.json(await generateAndSaveInvoice(req.body))
   } catch (error) {
     res.status(400).json({ error: error.message })
   }

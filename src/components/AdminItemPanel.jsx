@@ -115,6 +115,7 @@ export function AdminItemPanel({
             <input
               type="number"
               min="0"
+              max={itemForm.Gross_Rate || undefined}
               step="0.01"
               value={itemForm.Non_Taxable_Rate}
               onChange={(event) =>

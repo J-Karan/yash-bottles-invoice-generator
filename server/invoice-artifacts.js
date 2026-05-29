@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { generatedExcelDir, generatedPdfDir } from './config.js'
+import { parseDateOnly } from './date-utils.js'
 import { deriveFinancialYearSuffix } from './invoice-rules.js'
 
 async function deleteGeneratedFile(directoryPath, filename) {
@@ -106,6 +107,12 @@ function resolveMonthBucket(invoiceDate) {
 
 function resolveMonthBucketFullName(invoiceDate) {
   const source = String(invoiceDate || '').trim()
+  const dateOnly = parseDateOnly(source)
+  if (dateOnly) {
+    const parsedUtc = new Date(Date.UTC(dateOnly.year, dateOnly.month - 1, dateOnly.day))
+    return new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(parsedUtc)
+  }
+
   const parsed = new Date(source)
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`Invoice date is invalid for file storage: ${invoiceDate}`)
@@ -116,9 +123,9 @@ function resolveMonthBucketFullName(invoiceDate) {
 
 function resolveMonthNumber(invoiceDate) {
   const source = String(invoiceDate || '').trim()
-  const match = source.match(/^\d{4}-(\d{2})-\d{2}$/)
-  if (match) {
-    return match[1]
+  const dateOnly = parseDateOnly(source)
+  if (dateOnly) {
+    return String(dateOnly.month).padStart(2, '0')
   }
 
   const parsed = new Date(source)
@@ -131,9 +138,9 @@ function resolveMonthNumber(invoiceDate) {
 
 function resolveMonthBucketNumeric(invoiceDate) {
   const source = String(invoiceDate || '').trim()
-  const match = source.match(/^(\d{4})-(\d{2})-\d{2}$/)
-  if (match) {
-    return `${match[1]}-${match[2]}`
+  const dateOnly = parseDateOnly(source)
+  if (dateOnly) {
+    return `${dateOnly.year}-${String(dateOnly.month).padStart(2, '0')}`
   }
 
   const parsed = new Date(source)

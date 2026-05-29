@@ -13,6 +13,7 @@ import {
   maxLineItems,
   paymentPassword,
 } from './config.js'
+import { getBusinessDateString } from './date-utils.js'
 import {
   buildInvoiceLines,
   calculateInvoiceTotals,
@@ -1317,7 +1318,7 @@ async function buildInvoicePayload(input) {
     throw new Error('Vehicle number is required.')
   }
 
-  const invoiceDate = input.invoiceDate || new Date().toISOString().slice(0, 10)
+  const invoiceDate = input.invoiceDate || getBusinessDateString()
   const lines = buildInvoiceLines(lineItemsInput, items)
   const totals = calculateInvoiceTotals(lines)
 
@@ -1517,6 +1518,61 @@ async function saveInvoiceHistory(invoice) {
   })
 
   persistInvoice(invoice)
+  return invoice
+}
+
+async function generateAndSaveInvoice(input) {
+  const invoicePayload = await buildInvoicePayload(input)
+  const fileTargets = buildInvoiceFileTargets(invoicePayload.invoiceDate, invoicePayload.invoiceKey)
+  const temporaryTargets = buildTemporaryInvoiceFileTargets(fileTargets)
+
+  try {
+    await Promise.all([
+      fs.mkdir(fileTargets.excel.directoryPath, { recursive: true }),
+      fs.mkdir(fileTargets.pdf.directoryPath, { recursive: true }),
+    ])
+
+    await generateExcelInvoice(invoicePayload, temporaryTargets.excel)
+    await generatePdfInvoice(invoicePayload, temporaryTargets.pdf)
+    await saveInvoiceHistory(invoicePayload)
+
+    await Promise.all([
+      fs.rename(temporaryTargets.excel, fileTargets.excel.absolutePath),
+      fs.rename(temporaryTargets.pdf, fileTargets.pdf.absolutePath),
+    ])
+  } catch (error) {
+    await Promise.all([
+      removeTemporaryFile(temporaryTargets.excel),
+      removeTemporaryFile(temporaryTargets.pdf),
+    ])
+    throw error
+  }
+
+  return {
+    invoice: invoicePayload,
+    files: {
+      excel: `/downloads/excel/${fileTargets.excel.relativeUrlPath}`,
+      pdf: `/downloads/pdf/${fileTargets.pdf.relativeUrlPath}`,
+    },
+  }
+}
+
+function buildTemporaryInvoiceFileTargets(fileTargets) {
+  const suffix = `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return {
+    excel: path.join(fileTargets.excel.directoryPath, `${fileTargets.excel.filename}${suffix}`),
+    pdf: path.join(fileTargets.pdf.directoryPath, `${fileTargets.pdf.filename}${suffix}`),
+  }
+}
+
+async function removeTemporaryFile(filePath) {
+  try {
+    await fs.unlink(filePath)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error
+    }
+  }
 }
 
 function resolveShipToSelection(buyer, requestedOptionId) {
@@ -1671,6 +1727,9 @@ function normalizeItemInput(input, options = {}) {
   if (!Number.isFinite(nonTaxableRate) || nonTaxableRate < 0) {
     throw new Error('Non-taxable rate must be a valid number.')
   }
+  if (nonTaxableRate > grossRate) {
+    throw new Error('Non-taxable rate cannot be greater than gross rate.')
+  }
   if (!Number.isFinite(bottlesPerBag) || bottlesPerBag <= 0) {
     throw new Error('Bottles per bag must be greater than zero.')
   }
@@ -1737,6 +1796,7 @@ export {
   updateItem,
   deleteItem,
   buildInvoicePayload,
+  generateAndSaveInvoice,
   saveInvoiceHistory,
   generateExcelInvoice,
   generatePdfInvoice,

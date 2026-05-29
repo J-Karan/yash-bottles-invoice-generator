@@ -5,12 +5,16 @@ import path from 'node:path'
 import { before, describe, it } from 'node:test'
 
 let invoiceCore
+let dateUtils
+let invoiceFormatting
 
 before(async () => {
   process.env.APP_PASSWORD ||= 'test-app-password'
   process.env.ADMIN_PASSWORD ||= 'test-admin-password'
   process.env.PAYMENT_PASSWORD ||= 'test-payment-password'
   invoiceCore = await import('./invoice-core.js')
+  dateUtils = await import('./date-utils.js')
+  invoiceFormatting = await import('./invoice-formatting.js')
   await invoiceCore.dbReady
 })
 
@@ -24,6 +28,7 @@ describe('invoice-core compatibility exports', () => {
     assert.equal(typeof invoiceCore.deleteInvoiceHistory, 'function')
     assert.equal(typeof invoiceCore.readPaymentSummary, 'function')
     assert.equal(typeof invoiceCore.markUnpaidInvoicesPaid, 'function')
+    assert.equal(typeof invoiceCore.generateAndSaveInvoice, 'function')
     assert.equal(typeof invoiceCore.generateExcelInvoice, 'function')
     assert.equal(typeof invoiceCore.generatePdfInvoice, 'function')
   })
@@ -43,6 +48,16 @@ describe('generated artifact paths', () => {
     const targets = invoiceCore.buildInvoiceFileTargets('2026-03-01', '009-2025-26')
 
     assert.equal(targets.excel.relativeUrlPath, '2025-26/03-March/009-2025-26.xlsx')
+  })
+})
+
+describe('date formatting helpers', () => {
+  it('uses Asia/Kolkata for business dates', () => {
+    assert.equal(dateUtils.getBusinessDateString(new Date('2026-05-28T19:00:00.000Z')), '2026-05-29')
+  })
+
+  it('formats date-only invoice dates without timezone shifting', () => {
+    assert.equal(invoiceFormatting.formatDate('2026-05-01'), '01/05/2026')
   })
 })
 
@@ -123,6 +138,20 @@ describe('master data validation guardrails', () => {
           Bottles_Per_Bag: '0',
         }),
       /Gross rate must be a valid number/,
+    )
+  })
+
+  it('rejects item creation when non-taxable rate is greater than gross rate', () => {
+    assert.throws(
+      () =>
+        invoiceCore.createItem({
+          Item_Code: 'BADTAX',
+          Description: 'Bad taxable item',
+          Gross_Rate: '10',
+          Non_Taxable_Rate: '11',
+          Bottles_Per_Bag: '1',
+        }),
+      /Non-taxable rate cannot be greater than gross rate/,
     )
   })
 })

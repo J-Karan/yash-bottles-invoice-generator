@@ -55,6 +55,10 @@ function buildInvoiceLines(lineItemsInput, items) {
     const quantity = bags * bottlesPerBag
     const grossRate = Number(item.Gross_Rate)
     const nonTaxableRate = Number(item.Non_Taxable_Rate)
+    if (Number.isFinite(grossRate) && Number.isFinite(nonTaxableRate) && nonTaxableRate > grossRate) {
+      throw new Error(`Non-taxable rate cannot be greater than gross rate for line ${index + 1}.`)
+    }
+
     const taxableRate = roundCurrency(grossRate - nonTaxableRate)
     const amount = roundCurrency(quantity * grossRate)
     const nonTaxableValue = roundCurrency(quantity * nonTaxableRate)

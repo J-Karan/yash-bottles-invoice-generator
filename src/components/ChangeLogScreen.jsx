@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.1.2',
+    title: 'Stability update',
+    changes: [
+      'Made invoice generation publish files only after the invoice record is safely saved.',
+      'Added rate validation to prevent negative taxable values.',
+      'Fixed India-time invoice dates and date-only display across the app.',
+    ],
+  },
+  {
     version: '0.1.1',
     title: 'Software update',
     changes: [

@@ -158,9 +158,10 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Version 0.1.1' })).toBeVisible()
-  await page.getByRole('button', { name: 'Version 0.1.1' }).click()
+  await expect(page.getByRole('button', { name: 'Version 0.1.2' })).toBeVisible()
+  await page.getByRole('button', { name: 'Version 0.1.2' }).click()
   await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
+  await expect(page.getByText('Version 0.1.2')).toBeVisible()
   await expect(page.getByText('Version 0.1.1')).toBeVisible()
   await expect(page.getByText('Version 0.1.0')).toBeVisible()
   await expectNoHorizontalOverflow(page)

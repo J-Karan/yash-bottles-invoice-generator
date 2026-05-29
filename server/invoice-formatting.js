@@ -1,5 +1,16 @@
+import { parseDateOnly } from './date-utils.js'
+
 function formatDate(dateString) {
+  const dateOnly = parseDateOnly(dateString)
+  if (dateOnly) {
+    return `${String(dateOnly.day).padStart(2, '0')}/${String(dateOnly.month).padStart(2, '0')}/${dateOnly.year}`
+  }
+
   const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
   return new Intl.DateTimeFormat('en-GB').format(date)
 }
 
