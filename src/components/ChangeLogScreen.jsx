@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.1.7',
+    title: 'Vehicle entry update',
+    changes: [
+      'Kept vehicle number required while removing the strict format validation.',
+      'Removed the vehicle format helper text from the invoice form.',
+    ],
+  },
+  {
     version: '0.1.6',
     title: 'Workspace header polish',
     changes: [

@@ -28,8 +28,6 @@ import {
 import packageInfo from '../package.json'
 import './App.css'
 
-const vehicleNumberPattern = '^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$'
-const vehicleNumberRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/
 const appVersion = packageInfo.version
 
 function App() {
@@ -487,10 +485,6 @@ function App() {
     const isEditingInvoice = Boolean(editingInvoice?.invoiceKey)
 
     try {
-      if (!vehicleNumberRegex.test(form.vehicleNumber)) {
-        throw new Error('Enter a valid vehicle number like MH12AB1234.')
-      }
-
       const response = await appFetch('/api/invoices/generate', {
         method: 'POST',
         headers: {
@@ -976,13 +970,8 @@ function App() {
                   value={form.vehicleNumber}
                   onChange={updateInvoiceField}
                   placeholder="MH12AB1234"
-                  pattern={vehicleNumberPattern}
-                  title="Use an Indian vehicle number like MH12AB1234."
                   required
                 />
-                <small className="field-hint">
-                  Format example: MH12AB1234. Spaces are removed automatically.
-                </small>
               </label>
 
               <label>
