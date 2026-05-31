@@ -1,5 +1,17 @@
 const changeLogEntries = [
   {
+    version: '0.1.8',
+    title: 'UI/UX bug fixes',
+    changes: [
+      'Fixed download grid alignment shifts in history when Excel or PDF files are missing.',
+      'Prevented numeric scroll wheel increments on Number of Bags fields.',
+      'Mitigated horizontal scrolling by upgrading responsive layout threshold to 960px.',
+      'Improved legibility contrast for locked date inputs to meet accessibility standards.',
+      'Added early E-way distance warning banner inside the invoice creation form.',
+      'Integrated a fast "Clear Search" button inside the invoice history filters.',
+    ],
+  },
+  {
     version: '0.1.7',
     title: 'Vehicle entry update',
     changes: [
