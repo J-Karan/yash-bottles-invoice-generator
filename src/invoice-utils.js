@@ -239,6 +239,54 @@ function getStoredAppToken() {
   return localStorage.getItem('invoiceAppToken') || ''
 }
 
+function calculateInvoiceDetails(lineItems, items) {
+  const computedLines = (lineItems || []).map((line) => {
+    const selectedItem = items.find((item) => item.Item_Code === line.itemCode)
+    const bags = Number(line.bags || 0)
+    const bottlesPerBag = Number(selectedItem?.Bottles_Per_Bag || 0)
+    const quantity = bags * bottlesPerBag
+    const grossRate = Number(selectedItem?.Gross_Rate || 0)
+    const nonTaxableRate = Number(selectedItem?.Non_Taxable_Rate || 0)
+    const taxableRate = grossRate - nonTaxableRate
+    const amount = quantity * grossRate
+    const nonTaxableValue = quantity * nonTaxableRate
+    const taxableValue = quantity * taxableRate
+
+    return {
+      ...line,
+      selectedItem,
+      bags,
+      bottlesPerBag,
+      quantity,
+      grossRate,
+      amount,
+      nonTaxableRate,
+      nonTaxableValue,
+      taxableRate,
+      taxableValue,
+    }
+  })
+
+  const quantity = computedLines.reduce((sum, line) => sum + line.quantity, 0)
+  const taxableValue = computedLines.reduce((sum, line) => sum + line.taxableValue, 0)
+  const nonTaxableValue = computedLines.reduce((sum, line) => sum + line.nonTaxableValue, 0)
+  const cgst = taxableValue * 0.09
+  const sgst = taxableValue * 0.09
+  const total = nonTaxableValue + taxableValue + cgst + sgst
+
+  return {
+    computedLines,
+    computedTotals: {
+      quantity,
+      taxableValue,
+      nonTaxableValue,
+      cgst,
+      sgst,
+      total,
+    },
+  }
+}
+
 export {
   buildShipToOptions,
   createInitialInvoiceForm,
@@ -255,4 +303,5 @@ export {
   maxLineItems,
   resolveShipToOptionId,
   syncInvoiceForm,
+  calculateInvoiceDetails,
 }

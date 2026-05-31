@@ -25,6 +25,7 @@ import {
   maxLineItems,
   resolveShipToOptionId,
   syncInvoiceForm,
+  calculateInvoiceDetails,
 } from './invoice-utils.js'
 import packageInfo from '../package.json'
 import './App.css'
@@ -145,54 +146,10 @@ function App() {
     [form.shipToOptionId, shipToOptions],
   )
 
-  const computedLines = useMemo(
-    () =>
-      form.lineItems.map((line) => {
-        const selectedItem = items.find((item) => item.Item_Code === line.itemCode)
-        const bags = Number(line.bags || 0)
-        const bottlesPerBag = Number(selectedItem?.Bottles_Per_Bag || 0)
-        const quantity = bags * bottlesPerBag
-        const grossRate = Number(selectedItem?.Gross_Rate || 0)
-        const nonTaxableRate = Number(selectedItem?.Non_Taxable_Rate || 0)
-        const taxableRate = grossRate - nonTaxableRate
-        const amount = quantity * grossRate
-        const nonTaxableValue = quantity * nonTaxableRate
-        const taxableValue = quantity * taxableRate
-
-        return {
-          ...line,
-          selectedItem,
-          bags,
-          bottlesPerBag,
-          quantity,
-          grossRate,
-          amount,
-          nonTaxableRate,
-          nonTaxableValue,
-          taxableRate,
-          taxableValue,
-        }
-      }),
+  const { computedLines, computedTotals } = useMemo(
+    () => calculateInvoiceDetails(form.lineItems, items),
     [form.lineItems, items],
   )
-
-  const computedTotals = useMemo(() => {
-    const quantity = computedLines.reduce((sum, line) => sum + line.quantity, 0)
-    const taxableValue = computedLines.reduce((sum, line) => sum + line.taxableValue, 0)
-    const nonTaxableValue = computedLines.reduce((sum, line) => sum + line.nonTaxableValue, 0)
-    const cgst = taxableValue * 0.09
-    const sgst = taxableValue * 0.09
-    const total = nonTaxableValue + taxableValue + cgst + sgst
-
-    return {
-      quantity,
-      taxableValue,
-      nonTaxableValue,
-      cgst,
-      sgst,
-      total,
-    }
-  }, [computedLines])
 
   const filteredBuyers = useMemo(() => {
     const query = buyerSearch.trim().toLowerCase()

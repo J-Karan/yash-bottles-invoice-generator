@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.3.0',
+    title: 'Calculation engine refactoring',
+    changes: [
+      'Centralized CGST, SGST, quantity, and total calculations into a single source of truth helper function in invoice-utils.js.',
+      'Refactored workspace and preview modal to use the centralized calculations, reducing duplicate code.',
+      'Bumped system release version to v0.3.0.',
+    ],
+  },
+  {
     version: '0.2.1',
     title: 'Modal layout refinement',
     changes: [
