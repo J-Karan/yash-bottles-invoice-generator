@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.2.1',
+    title: 'Modal layout refinement',
+    changes: [
+      'Added card padding to the invoice history preview modal to prevent title text clipping.',
+      'Bumped system release version to v0.2.1.',
+    ],
+  },
+  {
     version: '0.2.0',
     title: 'Table layout refinement',
     changes: [
