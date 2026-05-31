@@ -21,6 +21,8 @@ export function InvoiceHistory({
   paymentStatus,
   paymentSummary,
   setHistorySearch,
+  onOpenPreview,
+  previewLoading,
 }) {
   return (
     <section className="panel history-panel">
@@ -140,6 +142,14 @@ export function InvoiceHistory({
                     <td>
                       <div className="history-downloads">
                         <button
+                          className="text-button history-action-preview"
+                          type="button"
+                          onClick={() => onOpenPreview(invoice)}
+                          disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
+                        >
+                          {previewLoading && historyActionBusyKey === invoice.invoiceKey ? 'Loading...' : 'Preview'}
+                        </button>
+                        <button
                           className="text-button history-action-edit"
                           type="button"
                           onClick={() => loadInvoiceForEdit(invoice)}
@@ -226,6 +236,14 @@ export function InvoiceHistory({
                 </dl>
 
                 <div className="history-downloads">
+                  <button
+                    className="text-button history-action-preview"
+                    type="button"
+                    onClick={() => onOpenPreview(invoice)}
+                    disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
+                  >
+                    {previewLoading && historyActionBusyKey === invoice.invoiceKey ? 'Loading...' : 'Preview'}
+                  </button>
                   <button
                     className="text-button history-action-edit"
                     type="button"

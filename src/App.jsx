@@ -5,6 +5,7 @@ import { AdminItemPanel } from './components/AdminItemPanel.jsx'
 import { ChangeLogScreen } from './components/ChangeLogScreen.jsx'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal.jsx'
 import { InvoiceHistory } from './components/InvoiceHistory.jsx'
+import { InvoicePreviewModal } from './components/InvoicePreviewModal.jsx'
 import { LoginScreen } from './components/LoginScreen.jsx'
 import { PaymentModal } from './components/PaymentModal.jsx'
 import { SuccessToast } from './components/SuccessToast.jsx'
@@ -50,6 +51,8 @@ function App() {
   const [successToast, setSuccessToast] = useState({ message: '', visible: false })
   const [editingInvoice, setEditingInvoice] = useState(null)
   const [historyActionBusyKey, setHistoryActionBusyKey] = useState('')
+  const [previewInvoice, setPreviewInvoice] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const [buyerForm, setBuyerForm] = useState(emptyBuyerForm)
   const [itemForm, setItemForm] = useState(emptyItemForm)
@@ -516,6 +519,27 @@ function App() {
       setError(submitError.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function openInvoicePreview(invoice) {
+    setPreviewLoading(true)
+    setHistoryActionBusyKey(invoice.invoiceKey)
+    setHistoryError('')
+
+    try {
+      const response = await appFetch(`/api/invoices/${encodeURIComponent(invoice.invoiceKey)}`)
+      const data = await readResponseJson(response)
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load invoice details.')
+      }
+
+      setPreviewInvoice(data.invoice)
+    } catch (loadError) {
+      setHistoryError(loadError.message)
+    } finally {
+      setPreviewLoading(false)
+      setHistoryActionBusyKey('')
     }
   }
 
@@ -1274,6 +1298,8 @@ function App() {
           paymentStatus={paymentStatus}
           paymentSummary={paymentSummary}
           setHistorySearch={setHistorySearch}
+          onOpenPreview={openInvoicePreview}
+          previewLoading={previewLoading}
         />
       ) : null}
       {activeView === 'history' && paymentModalOpen ? (
@@ -1350,6 +1376,14 @@ function App() {
         visible={successToast.visible}
         onDismiss={() => setSuccessToast({ message: '', visible: false })}
       />
+      {previewInvoice ? (
+        <InvoicePreviewModal
+          invoice={previewInvoice}
+          buyers={buyers}
+          items={items}
+          onClose={() => setPreviewInvoice(null)}
+        />
+      ) : null}
     </main>
   )
 }
