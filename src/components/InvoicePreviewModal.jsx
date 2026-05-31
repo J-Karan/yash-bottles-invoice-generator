@@ -15,7 +15,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
 
   const computedLines = useMemo(
     () =>
-      invoice.lineItems.map((line) => {
+      (invoice?.lineItems || []).map((line) => {
         const selectedItem = items.find((item) => item.Item_Code === line.itemCode)
         const bags = Number(line.bags || 0)
         const bottlesPerBag = Number(selectedItem?.Bottles_Per_Bag || 0)
