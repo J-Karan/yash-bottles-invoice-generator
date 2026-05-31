@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.3.1',
+    title: 'Eliminate God-Files (Split invoice-core.js)',
+    changes: [
+      'Extracted database CRUD helper methods, mappers, normalizers, and ship-to resolution helpers from the server-side god-file invoice-core.js into a dedicated, clean invoice-repository.js repository module.',
+      'Implemented clean, modular delegation to prevent duplicate database operations and circular dependencies.',
+      'Bumped system release version to v0.3.1.',
+    ],
+  },
+  {
     version: '0.3.0',
     title: 'Calculation engine refactoring',
     changes: [
