@@ -323,7 +323,14 @@ async function readInvoiceDraft(invoiceKey) {
       vehicle_number,
       buyer_code,
       ship_to_name_snapshot,
-      ship_to_address_snapshot
+      ship_to_address_snapshot,
+      quantity,
+      amount,
+      non_taxable_value,
+      taxable_value,
+      cgst,
+      sgst,
+      total
     FROM invoices
     WHERE invoice_key = ?
   `).get(key)
@@ -337,7 +344,17 @@ async function readInvoiceDraft(invoiceKey) {
   const lines = db.prepare(`
     SELECT
       item_code,
-      bags
+      item_description_snapshot,
+      hsn_code_snapshot,
+      bags,
+      bottles_per_bag,
+      quantity,
+      gross_rate,
+      amount,
+      non_taxable_rate,
+      non_taxable_value,
+      taxable_rate,
+      taxable_value
     FROM invoice_lines
     WHERE invoice_number = ?
     ORDER BY line_index ASC, id ASC
@@ -358,6 +375,37 @@ async function readInvoiceDraft(invoiceKey) {
     WHERE buyer_code = ?
   `).get(invoice.buyer_code))
 
+  const savedLines = lines.map((line) => ({
+    id: `saved-line-${line.item_code}`,
+    itemCode: line.item_code,
+    bags: Number(line.bags || 0),
+    bottlesPerBag: Number(line.bottles_per_bag || 0),
+    quantity: Number(line.quantity || 0),
+    grossRate: Number(line.gross_rate || 0),
+    amount: Number(line.amount || 0),
+    nonTaxableRate: Number(line.non_taxable_rate || 0),
+    nonTaxableValue: Number(line.non_taxable_value || 0),
+    taxableRate: Number(line.taxable_rate || 0),
+    taxableValue: Number(line.taxable_value || 0),
+    selectedItem: {
+      Item_Code: line.item_code,
+      Description: line.item_description_snapshot,
+      HSN_Code: line.hsn_code_snapshot || '',
+      Gross_Rate: String(line.gross_rate || 0),
+      Non_Taxable_Rate: String(line.non_taxable_rate || 0),
+      Bottles_Per_Bag: String(line.bottles_per_bag || 0),
+    }
+  }))
+
+  const savedTotals = {
+    quantity: Number(invoice.quantity || 0),
+    taxableValue: Number(invoice.taxable_value || 0),
+    nonTaxableValue: Number(invoice.non_taxable_value || 0),
+    cgst: Number(invoice.cgst || 0),
+    sgst: Number(invoice.sgst || 0),
+    total: Number(invoice.total || 0),
+  }
+
   return {
     invoiceNumber: invoice.invoice_number,
     invoiceKey: invoice.invoice_key,
@@ -373,6 +421,8 @@ async function readInvoiceDraft(invoiceKey) {
       itemCode: line.item_code,
       bags: String(line.bags || 0),
     })),
+    savedLines,
+    savedTotals,
   }
 }
 

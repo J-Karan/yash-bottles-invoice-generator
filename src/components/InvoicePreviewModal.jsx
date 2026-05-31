@@ -13,10 +13,15 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
     [invoice.shipToOptionId, shipToOptions],
   )
 
-  const { computedLines, computedTotals } = useMemo(
-    () => calculateInvoiceDetails(invoice?.lineItems, items),
-    [invoice?.lineItems, items],
-  )
+  const { computedLines, computedTotals } = useMemo(() => {
+    if (invoice?.savedLines && invoice?.savedTotals) {
+      return {
+        computedLines: invoice.savedLines,
+        computedTotals: invoice.savedTotals,
+      }
+    }
+    return calculateInvoiceDetails(invoice?.lineItems, items)
+  }, [invoice, items])
 
   return (
     <section className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">

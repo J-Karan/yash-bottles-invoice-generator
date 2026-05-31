@@ -1,5 +1,15 @@
 const changeLogEntries = [
   {
+    version: '0.3.2',
+    title: 'Historical Preview Fix (Unknown Item Bug)',
+    changes: [
+      'Fixed a high-fidelity rendering bug where previewing historical and legacy invoices displayed "Unknown Item" and ₹0.00.',
+      'Enforced rendering of actual saved snapshot items and invoice totals directly from the database instead of trying to dynamically recalculate them on the fly.',
+      'Ensured absolute database integrity for old records while preserving real-time preview calculations for new unsaved invoices.',
+      'Bumped system release version to v0.3.2.',
+    ],
+  },
+  {
     version: '0.3.1',
     title: 'Eliminate God-Files (Split invoice-core.js)',
     changes: [
