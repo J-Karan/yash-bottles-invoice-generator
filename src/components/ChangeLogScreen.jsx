@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.2.0',
+    title: 'Table layout refinement',
+    changes: [
+      'Prevented awkward text wrapping in history table column headers (e.g. Lines, Vehicle).',
+      'Bumped system release version to v0.2.0.',
+    ],
+  },
+  {
     version: '0.1.9',
     title: 'Invoice History Preview',
     changes: [

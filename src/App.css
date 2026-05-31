@@ -1337,6 +1337,7 @@
   font-size: 0.7rem;
   font-weight: 700;
   background: rgba(244, 232, 221, 0.55);
+  white-space: nowrap;
 }
 
 .history-table td strong {
