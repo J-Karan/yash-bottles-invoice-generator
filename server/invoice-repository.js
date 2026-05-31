@@ -375,27 +375,42 @@ async function readInvoiceDraft(invoiceKey) {
     WHERE buyer_code = ?
   `).get(invoice.buyer_code))
 
-  const savedLines = lines.map((line) => ({
-    id: `saved-line-${line.item_code}`,
-    itemCode: line.item_code,
-    bags: Number(line.bags || 0),
-    bottlesPerBag: Number(line.bottles_per_bag || 0),
-    quantity: Number(line.quantity || 0),
-    grossRate: Number(line.gross_rate || 0),
-    amount: Number(line.amount || 0),
-    nonTaxableRate: Number(line.non_taxable_rate || 0),
-    nonTaxableValue: Number(line.non_taxable_value || 0),
-    taxableRate: Number(line.taxable_rate || 0),
-    taxableValue: Number(line.taxable_value || 0),
-    selectedItem: {
-      Item_Code: line.item_code,
-      Description: line.item_description_snapshot,
-      HSN_Code: line.hsn_code_snapshot || '',
-      Gross_Rate: String(line.gross_rate || 0),
-      Non_Taxable_Rate: String(line.non_taxable_rate || 0),
-      Bottles_Per_Bag: String(line.bottles_per_bag || 0),
+  const savedLines = lines.map((line) => {
+    let bags = Number(line.bags || 0)
+    let bottlesPerBag = Number(line.bottles_per_bag || 0)
+    let description = line.item_description_snapshot || ''
+
+    if (bags === 0 || bottlesPerBag === 0) {
+      const match = description.match(/\s*(?:Bags\s+)?(\d+)\s*[\*x]\s*(\d+)/i)
+      if (match) {
+        bags = Number(match[1])
+        bottlesPerBag = Number(match[2])
+        description = description.replace(match[0], '').trim()
+      }
     }
-  }))
+
+    return {
+      id: `saved-line-${line.item_code}`,
+      itemCode: line.item_code,
+      bags: bags,
+      bottlesPerBag: bottlesPerBag,
+      quantity: Number(line.quantity || (bags * bottlesPerBag)),
+      grossRate: Number(line.gross_rate || 0),
+      amount: Number(line.amount || 0),
+      nonTaxableRate: Number(line.non_taxable_rate || 0),
+      nonTaxableValue: Number(line.non_taxable_value || 0),
+      taxableRate: Number(line.taxable_rate || 0),
+      taxableValue: Number(line.taxable_value || 0),
+      selectedItem: {
+        Item_Code: line.item_code,
+        Description: description,
+        HSN_Code: line.hsn_code_snapshot || '',
+        Gross_Rate: String(line.gross_rate || 0),
+        Non_Taxable_Rate: String(line.non_taxable_rate || 0),
+        Bottles_Per_Bag: String(bottlesPerBag),
+      }
+    }
+  })
 
   const savedTotals = {
     quantity: Number(invoice.quantity || 0),
@@ -417,10 +432,19 @@ async function readInvoiceDraft(invoiceKey) {
       invoice.ship_to_address_snapshot,
     ),
     vehicleNumber: invoice.vehicle_number,
-    lineItems: lines.map((line) => ({
-      itemCode: line.item_code,
-      bags: String(line.bags || 0),
-    })),
+    lineItems: lines.map((line) => {
+      let bags = Number(line.bags || 0)
+      if (bags === 0) {
+        const match = (line.item_description_snapshot || '').match(/\s*(?:Bags\s+)?(\d+)\s*[\*x]\s*(\d+)/i)
+        if (match) {
+          bags = Number(match[1])
+        }
+      }
+      return {
+        itemCode: line.item_code,
+        bags: String(bags),
+      }
+    }),
     savedLines,
     savedTotals,
   }

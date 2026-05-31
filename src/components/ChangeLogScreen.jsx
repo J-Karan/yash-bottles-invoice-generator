@@ -1,5 +1,16 @@
 const changeLogEntries = [
   {
+    version: '0.3.3',
+    title: 'Clean Legacy Bags & Separators (Inconsistencies Fix)',
+    changes: [
+      'Resolved rendering inconsistencies inside the Invoice History Preview Modal regarding item quantity, bags, and separators.',
+      'Optimised the backend repository to parse legacy bags/bottles-per-bag values from description snapshots using a universal regex when legacy columns are zero.',
+      'Dynamically stripped parsed inline bag metadata from returned description titles to avoid duplicate display in previews.',
+      'Rendered a unified high-fidelity "Bags x" subtitle under item description titles using a consistent " x " separator.',
+      'Bumped system release version to v0.3.3.',
+    ],
+  },
+  {
     version: '0.3.2',
     title: 'Historical Preview Fix (Unknown Item Bug)',
     changes: [

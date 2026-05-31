@@ -115,6 +115,11 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                   <td>{index + 1}</td>
                   <td>
                     <strong>{line.selectedItem?.Description || 'Unknown Item'}</strong>
+                    {line.bags > 0 && line.bottlesPerBag > 0 && (
+                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--accent)', marginTop: '2px' }}>
+                        Bags {line.bags} x {line.bottlesPerBag}
+                      </div>
+                    )}
                     <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '2px' }}>
                       HSN: {line.selectedItem?.HSN_Code || '7010'} | {line.bottlesPerBag || 0} Pcs/Bag
                     </div>
