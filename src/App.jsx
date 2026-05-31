@@ -961,6 +961,11 @@ function App() {
                     </option>
                   ))}
                 </select>
+                {form.shipToOptionId === 'bill_to' && !['B001', 'B002', 'B003', 'B004', 'B005'].includes(form.buyerCode) ? (
+                  <p className="inline-warning">
+                    ⚠️ E-Way Distance Alert: No default distance registered in the database for this billing address. E-Way JSON will require entering distance overrides in history.
+                  </p>
+                ) : null}
               </label>
 
               <label>
@@ -1048,6 +1053,7 @@ function App() {
                             min="1"
                             value={line.bags}
                             onChange={(event) => updateLineItem(line.id, 'bags', event.target.value)}
+                            onWheel={(event) => event.target.blur()}
                             required
                           />
                         </label>

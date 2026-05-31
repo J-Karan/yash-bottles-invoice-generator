@@ -73,11 +73,22 @@ export function InvoiceHistory({
 
       <label className="search-field history-search">
         <span>Search history</span>
-        <input
-          value={historySearch}
-          onChange={(event) => setHistorySearch(event.target.value)}
-          placeholder="Invoice no, buyer, date, vehicle, GSTIN"
-        />
+        <div className="search-input-wrapper">
+          <input
+            value={historySearch}
+            onChange={(event) => setHistorySearch(event.target.value)}
+            placeholder="Invoice no, buyer, date, vehicle, GSTIN"
+          />
+          {historySearch ? (
+            <button
+              className="clear-search-button"
+              type="button"
+              onClick={() => setHistorySearch('')}
+            >
+              &times;
+            </button>
+          ) : null}
+        </div>
       </label>
 
       {historyError ? <p className="error-banner">{historyError}</p> : null}
@@ -153,7 +164,7 @@ export function InvoiceHistory({
                             Excel
                           </button>
                         ) : (
-                          <span className="history-file-missing">Excel missing</span>
+                          <span className="history-file-missing history-action-excel">Excel missing</span>
                         )}
                         {invoice.pdfAvailable ? (
                           <button
@@ -164,7 +175,7 @@ export function InvoiceHistory({
                             PDF
                           </button>
                         ) : (
-                          <span className="history-file-missing">PDF missing</span>
+                          <span className="history-file-missing history-action-pdf">PDF missing</span>
                         )}
                         {onRenderEwayJsonAction(invoice)}
                       </div>
@@ -240,7 +251,7 @@ export function InvoiceHistory({
                       Excel
                     </button>
                   ) : (
-                    <span className="history-file-missing">Excel missing</span>
+                    <span className="history-file-missing history-action-excel">Excel missing</span>
                   )}
                   {invoice.pdfAvailable ? (
                     <button
@@ -251,7 +262,7 @@ export function InvoiceHistory({
                       PDF
                     </button>
                   ) : (
-                    <span className="history-file-missing">PDF missing</span>
+                    <span className="history-file-missing history-action-pdf">PDF missing</span>
                   )}
                   {onRenderEwayJsonAction(invoice)}
                 </div>
