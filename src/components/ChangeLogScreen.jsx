@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.1.9',
+    title: 'Invoice History Preview',
+    changes: [
+      'Added a read-only high-fidelity Invoice Preview Modal inside the Invoice History tab.',
+      'Optimized real-time calculations matching the main invoice creation engine.',
+      'Redesigned the history actions panel into a balanced 3-row grid layout.',
+    ],
+  },
+  {
     version: '0.1.8',
     title: 'UI/UX bug fixes',
     changes: [
