@@ -157,12 +157,13 @@ current version number, and clicking it opens the in-app change log before login
 
 Current release:
 
+- `0.3.5` - patched Vite/concurrently dev tooling, cleaned npm audits, and made the Node
+  test runner deterministic for SQLite-backed tests.
 - `0.3.4` - UX polish for history actions, E-way distance entry, preview modal accessibility,
   request hardening, and safer Nyx backup/deploy handling.
 - `0.3.3` - historical preview consistency fixes for legacy bags, quantities, and separators.
 - `0.3.2` - historical preview now uses saved invoice snapshots instead of recalculating old records.
 - `0.3.1` - server repository refactor out of `invoice-core.js`.
-- `0.3.0` - centralized frontend invoice calculation helpers.
 
 When shipping a user-facing update:
 

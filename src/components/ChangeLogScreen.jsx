@@ -1,5 +1,15 @@
 const changeLogEntries = [
   {
+    version: '0.3.5',
+    title: 'Clean Dev Audit & Toolchain Patch',
+    changes: [
+      'Updated Vite and concurrently to patched dev-tooling versions so the full npm audit is clean.',
+      'Made the Node test runner execute files sequentially to remove SQLite initialization races.',
+      'Kept the production app on the same UX, E-way distance, preview modal, validation, and deploy safety improvements from v0.3.4.',
+      'Re-ran backend, build, UI, browser smoke, and Nyx deployment verification after the dependency patch.',
+    ],
+  },
+  {
     version: '0.3.4',
     title: 'UX, E-way Distance & Safety Polish',
     changes: [

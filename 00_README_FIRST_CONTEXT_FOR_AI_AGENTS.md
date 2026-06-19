@@ -44,7 +44,7 @@ Core behavior:
 Package:
 
 - Name: `invoice-web-app`
-- Version: `0.3.4`
+- Version: `0.3.5`
 - Module type: ESM
 - Required Node engine: `>=22.5.0`
 
@@ -66,7 +66,9 @@ Top-level dependencies used by the app:
 
 Known verified dependency state:
 
+- Local `npm audit`: 0 vulnerabilities after patching dev tooling.
 - Local `npm audit --omit=dev`: 0 vulnerabilities.
+- Nyx `npm audit`: 0 vulnerabilities after patching dev tooling.
 - Nyx `npm audit --omit=dev`: 0 vulnerabilities.
 
 ## Directory Map
