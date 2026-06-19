@@ -1,5 +1,16 @@
 const changeLogEntries = [
   {
+    version: '0.3.4',
+    title: 'UX, E-way Distance & Safety Polish',
+    changes: [
+      'Added a guided distance entry path for E-way JSON when an invoice is otherwise ready but missing transport distance.',
+      'Improved Invoice History actions so preview, edit, delete, and file exports are easier to scan and less error-prone.',
+      'Added keyboard focus trapping to the Invoice History preview modal for a safer accessible dialog experience.',
+      'Fixed a stale CSS token in the delete confirmation detail panel.',
+      'Tightened request validation, protected E-way download filenames, and preserved SQLite during Nyx deploy backups.',
+    ],
+  },
+  {
     version: '0.3.3',
     title: 'Clean Legacy Bags & Separators (Inconsistencies Fix)',
     changes: [

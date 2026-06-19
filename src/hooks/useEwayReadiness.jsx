@@ -43,6 +43,14 @@ function useEwayReadiness({
     setEwayDistanceOverrides({})
   }
 
+  function setEwayDistance(invoiceKey, value) {
+    const sanitized = String(value || '').replace(/[^\d]/g, '').slice(0, 4)
+    setEwayDistanceOverrides((current) => ({
+      ...current,
+      [invoiceKey]: sanitized,
+    }))
+  }
+
   function getEwayDistance(invoice) {
     return ewayDistanceOverrides[invoice.invoiceKey] ?? (invoice.distanceKm ? String(invoice.distanceKm) : '')
   }
@@ -106,6 +114,36 @@ function useEwayReadiness({
       )
     }
 
+    const readiness = state.readiness
+    const missingFields = readiness?.missingFields || []
+    const unresolvedFields = missingFields.filter((field) => field !== 'distance_km')
+    const distanceValue = readiness ? getEwayDistance(readiness) : ''
+    const canEnterDistance = readiness && missingFields.includes('distance_km') && unresolvedFields.length === 0
+
+    if (canEnterDistance) {
+      return (
+        <div className="eway-distance-action history-action-eway">
+          <input
+            aria-label={`Distance KM for ${invoice.invoiceNumber}`}
+            inputMode="numeric"
+            min="1"
+            pattern="[0-9]*"
+            placeholder="KM"
+            value={distanceValue}
+            onChange={(event) => setEwayDistance(readiness.invoiceKey, event.target.value)}
+          />
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => downloadEwayJson(readiness, setHistoryError)}
+            disabled={!Number(distanceValue)}
+          >
+            E-way JSON
+          </button>
+        </div>
+      )
+    }
+
     return <span className="history-file-missing history-action-eway">E-way JSON: {state.reason}</span>
   }
 
@@ -114,9 +152,11 @@ function useEwayReadiness({
     downloadEwayJson,
     ewayError,
     ewayLoading,
+    getEwayDistance,
     getEwayDownloadState,
     refreshEwayReadiness,
     renderEwayJsonAction,
+    setEwayDistance,
   }
 }
 

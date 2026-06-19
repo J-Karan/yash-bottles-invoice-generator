@@ -144,6 +144,8 @@ export function InvoiceHistory({
                         <button
                           className="text-button history-action-preview"
                           type="button"
+                          aria-label={`Preview invoice ${invoice.invoiceNumber}`}
+                          title={`Preview invoice ${invoice.invoiceNumber}`}
                           onClick={() => onOpenPreview(invoice)}
                           disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
                         >
@@ -152,6 +154,8 @@ export function InvoiceHistory({
                         <button
                           className="text-button history-action-edit"
                           type="button"
+                          aria-label={`Edit invoice ${invoice.invoiceNumber}`}
+                          title={`Edit invoice ${invoice.invoiceNumber}`}
                           onClick={() => loadInvoiceForEdit(invoice)}
                           disabled={historyActionBusyKey === invoice.invoiceKey}
                         >
@@ -160,6 +164,8 @@ export function InvoiceHistory({
                         <button
                           className="text-button history-action-delete"
                           type="button"
+                          aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                          title="Only the latest invoice can be deleted"
                           onClick={() => handleDeleteInvoice(invoice)}
                           disabled={historyActionBusyKey === invoice.invoiceKey}
                         >
@@ -239,6 +245,8 @@ export function InvoiceHistory({
                   <button
                     className="text-button history-action-preview"
                     type="button"
+                    aria-label={`Preview invoice ${invoice.invoiceNumber}`}
+                    title={`Preview invoice ${invoice.invoiceNumber}`}
                     onClick={() => onOpenPreview(invoice)}
                     disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
                   >
@@ -247,6 +255,8 @@ export function InvoiceHistory({
                   <button
                     className="text-button history-action-edit"
                     type="button"
+                    aria-label={`Edit invoice ${invoice.invoiceNumber}`}
+                    title={`Edit invoice ${invoice.invoiceNumber}`}
                     onClick={() => loadInvoiceForEdit(invoice)}
                     disabled={historyActionBusyKey === invoice.invoiceKey}
                   >
@@ -255,6 +265,8 @@ export function InvoiceHistory({
                   <button
                     className="text-button history-action-delete"
                     type="button"
+                    aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                    title="Only the latest invoice can be deleted"
                     onClick={() => handleDeleteInvoice(invoice)}
                     disabled={historyActionBusyKey === invoice.invoiceKey}
                   >

@@ -104,9 +104,11 @@ function App() {
     downloadEwayJson,
     ewayError,
     ewayLoading,
+    getEwayDistance,
     getEwayDownloadState,
     refreshEwayReadiness,
     renderEwayJsonAction,
+    setEwayDistance,
   } = useEwayReadiness({
     appFetch,
     downloadProtectedFile,
@@ -942,11 +944,6 @@ function App() {
                     </option>
                   ))}
                 </select>
-                {form.shipToOptionId === 'bill_to' && !['B001', 'B002', 'B003', 'B004', 'B005'].includes(form.buyerCode) ? (
-                  <p className="inline-warning">
-                    ⚠️ E-Way Distance Alert: No default distance registered in the database for this billing address. E-Way JSON will require entering distance overrides in history.
-                  </p>
-                ) : null}
               </label>
 
               <label>
@@ -1216,6 +1213,19 @@ function App() {
                     >
                       Download E-way JSON
                     </button>
+                  ) : generatedEwayState.reason === 'Missing distance' && generatedEwayState.readiness ? (
+                    <label className="eway-inline-distance">
+                      <span>Distance km</span>
+                      <input
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="Enter KM"
+                        value={getEwayDistance(generatedEwayState.readiness)}
+                        onChange={(event) =>
+                          setEwayDistance(generatedEwayState.readiness.invoiceKey, event.target.value)
+                        }
+                      />
+                    </label>
                   ) : (
                     <span className="download-disabled">E-way JSON: {generatedEwayState.reason}</span>
                   )}

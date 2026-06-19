@@ -1,7 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useModalTrap } from '../hooks/useModalTrap.js'
 import { formatDisplayDate, formatMoney, buildShipToOptions, calculateInvoiceDetails } from '../invoice-utils.js'
 
 export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
+  const modalRef = useRef(null)
+  useModalTrap(modalRef, onClose)
+
   const selectedBuyer = useMemo(
     () => buyers.find((buyer) => buyer.Buyer_Code === invoice.buyerCode),
     [buyers, invoice.buyerCode],
@@ -24,11 +28,19 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
   }, [invoice, items])
 
   return (
-    <section className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="modal-card preview-modal-card" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="modal-card preview-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invoice-preview-title"
+        ref={modalRef}
+        tabIndex="-1"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="panel-header panel-header-row">
           <div>
-            <h2>Preview: {invoice.invoiceNumber}</h2>
+            <h2 id="invoice-preview-title">Preview: {invoice.invoiceNumber}</h2>
             <p>Read-only high-fidelity invoice sheet representation.</p>
           </div>
           <button className="secondary-button" type="button" onClick={onClose}>
@@ -42,17 +54,17 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
               <h3 className="preview-sheet-logo">Yash Bottles</h3>
               <span className="preview-sheet-logo-sub">Manufacturer of Glass Bottles</span>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <strong style={{ fontSize: '1.1rem', color: 'var(--accent)' }}>Tax Invoice</strong>
-              <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: '0.8rem' }}>Original for Buyer</p>
+            <div className="preview-sheet-document-title">
+              <strong>Tax Invoice</strong>
+              <p>Original for Buyer</p>
             </div>
           </header>
 
           <section className="preview-sheet-meta-grid">
             <div>
               <h4>Billed To (Buyer)</h4>
-              <p style={{ fontWeight: '700' }}>{selectedBuyer?.Buyer_Name || 'Unknown Buyer'}</p>
-              <p style={{ whiteSpace: 'pre-line', fontSize: '0.82rem', marginTop: '4px', color: 'var(--muted-strong)' }}>
+              <p className="preview-sheet-party-name">{selectedBuyer?.Buyer_Name || 'Unknown Buyer'}</p>
+              <p className="preview-sheet-address">
                 {[
                   selectedBuyer?.Address_Line1,
                   selectedBuyer?.Address_Line2,
@@ -63,7 +75,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                   .join('\n')}
               </p>
               {selectedBuyer?.GSTIN ? (
-                <p style={{ marginTop: '8px', fontSize: '0.82rem' }}>
+                <p className="preview-sheet-tax-id">
                   <strong>GSTIN:</strong> {selectedBuyer.GSTIN}
                 </p>
               ) : null}
@@ -71,10 +83,10 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
 
             <div>
               <h4>Ship To (Destination)</h4>
-              <p style={{ fontWeight: '700' }}>
+              <p className="preview-sheet-party-name">
                 {selectedShipToOption?.id === 'bill_to' ? 'SAME AS BILLING' : selectedShipToOption?.shipToName || 'SAME AS BILLING'}
               </p>
-              <p style={{ whiteSpace: 'pre-line', fontSize: '0.82rem', marginTop: '4px', color: 'var(--muted-strong)' }}>
+              <p className="preview-sheet-address">
                 {selectedShipToOption?.id === 'bill_to'
                   ? [
                       selectedBuyer?.Address_Line1,
@@ -86,7 +98,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                       .join('\n')
                   : selectedShipToOption?.shipToAddress || '--'}
               </p>
-              <dl style={{ marginTop: '12px' }}>
+              <dl className="preview-sheet-mini-meta">
                 <dt>Invoice Date</dt>
                 <dd>{formatDisplayDate(invoice.invoiceDate)}</dd>
                 <dt>Vehicle No</dt>
@@ -100,13 +112,13 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
               <tr>
                 <th>#</th>
                 <th>Item Description</th>
-                <th style={{ textAlign: 'right' }}>Bags</th>
-                <th style={{ textAlign: 'right' }}>Qty (Pcs)</th>
-                <th style={{ textAlign: 'right' }}>Gross Rate</th>
-                <th style={{ textAlign: 'right' }}>Taxable Value</th>
-                <th style={{ textAlign: 'right' }}>CGST 9%</th>
-                <th style={{ textAlign: 'right' }}>SGST 9%</th>
-                <th style={{ textAlign: 'right' }}>Line Total</th>
+                <th className="preview-sheet-number">Bags</th>
+                <th className="preview-sheet-number">Qty (Pcs)</th>
+                <th className="preview-sheet-number">Gross Rate</th>
+                <th className="preview-sheet-number">Taxable Value</th>
+                <th className="preview-sheet-number">CGST 9%</th>
+                <th className="preview-sheet-number">SGST 9%</th>
+                <th className="preview-sheet-number">Line Total</th>
               </tr>
             </thead>
             <tbody>
@@ -116,21 +128,21 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                   <td>
                     <strong>{line.selectedItem?.Description || 'Unknown Item'}</strong>
                     {line.bags > 0 && line.bottlesPerBag > 0 && (
-                      <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--accent)', marginTop: '2px' }}>
+                      <div className="preview-sheet-bag-note">
                         Bags {line.bags} x {line.bottlesPerBag}
                       </div>
                     )}
-                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '2px' }}>
+                    <div className="preview-sheet-item-meta">
                       HSN: {line.selectedItem?.HSN_Code || '7010'} | {line.bottlesPerBag || 0} Pcs/Bag
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{line.bags}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{line.quantity}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(line.grossRate)}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(line.taxableValue)}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(line.taxableValue * 0.09)}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatMoney(line.taxableValue * 0.09)}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>
+                  <td className="preview-sheet-number">{line.bags}</td>
+                  <td className="preview-sheet-number">{line.quantity}</td>
+                  <td className="preview-sheet-number">{formatMoney(line.grossRate)}</td>
+                  <td className="preview-sheet-number">{formatMoney(line.taxableValue)}</td>
+                  <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
+                  <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
+                  <td className="preview-sheet-number preview-sheet-line-total">
                     {formatMoney(line.amount)}
                   </td>
                 </tr>
@@ -156,13 +168,13 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
               <strong>{formatMoney(computedTotals.sgst)}</strong>
 
               <span className="preview-sheet-grand-total">Grand Total</span>
-              <strong className="preview-sheet-grand-total" style={{ fontWeight: '850' }}>
+              <strong className="preview-sheet-grand-total preview-sheet-grand-total-value">
                 {formatMoney(computedTotals.total)}
               </strong>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }

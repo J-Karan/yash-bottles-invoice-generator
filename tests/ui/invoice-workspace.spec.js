@@ -111,10 +111,10 @@ async function mockAuthenticatedApis(page) {
           {
             ...invoice,
             lineCount: 1,
-            distanceKm: 75,
-            missingFields: [],
+            distanceKm: 0,
+            missingFields: ['distance_km'],
             warnings: [],
-            ready: true,
+            ready: false,
           },
         ],
       },
@@ -158,9 +158,10 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Version 0.3.3' })).toBeVisible()
-  await page.getByRole('button', { name: 'Version 0.3.3' }).click()
+  await expect(page.getByRole('button', { name: 'Version 0.3.4' })).toBeVisible()
+  await page.getByRole('button', { name: 'Version 0.3.4' }).click()
   await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
+  await expect(page.getByText('Version 0.3.4')).toBeVisible()
   await expect(page.getByText('Version 0.3.3')).toBeVisible()
   await expect(page.getByText('Version 0.3.1')).toBeVisible()
   await expect(page.getByText('Version 0.3.0')).toBeVisible()
@@ -195,7 +196,7 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.locator('.workspace-bar')).toBeVisible()
   await expect(page.getByText('Yash Bottles')).toBeVisible()
   await expect(page.getByText('Invoice Generator')).toBeVisible()
-  await expect(page.locator('.workspace-version')).toHaveText('Version 0.3.3')
+  await expect(page.locator('.workspace-version')).toHaveText('Version 0.3.4')
   const workspaceBrandFontSize = await page.locator('.workspace-brand').evaluate((element) => Number.parseFloat(window.getComputedStyle(element).fontSize))
   expect(workspaceBrandFontSize).toBeGreaterThanOrEqual(21)
   await expect(page.locator('.workspace-bar-metrics')).toHaveCount(0)
@@ -244,6 +245,10 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   await expect(page.getByRole('heading', { name: 'Invoice History' })).toBeVisible()
   await expectAnyVisibleText(page, 'Acme Packaging')
   await expect(page.locator('.history-total-cell').first()).toHaveCSS('white-space', 'nowrap')
+  const visibleDistanceInput = page.locator('input[aria-label="Distance KM for 001/2026-27"]:visible')
+  await expect(visibleDistanceInput).toBeVisible()
+  await visibleDistanceInput.fill('75')
+  await expect(page.locator('button:visible', { hasText: 'E-way JSON' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('history-tab.png'), fullPage: true })
 
   await page.getByRole('button', { name: 'Delete' }).first().click()

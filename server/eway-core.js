@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { dbPath } from './config.js'
+import { normalizeInvoiceKey } from './input-validation.js'
 
 const supplier = {
   gstin: '27BZCPA4008G1ZX',
@@ -147,6 +148,7 @@ function buildReadinessEntry(row, overrideDistanceKm, distanceConfig = {}) {
 }
 
 function buildEwayBulkJson(invoiceKey, options = {}) {
+  const safeInvoiceKey = normalizeInvoiceKey(invoiceKey)
   const db = openDb()
   try {
     const invoice = db.prepare(`
@@ -177,7 +179,7 @@ function buildEwayBulkJson(invoiceKey, options = {}) {
       FROM invoices i
       LEFT JOIN buyers b ON b.buyer_code = i.buyer_code
       WHERE i.invoice_key = ?
-    `).get(invoiceKey)
+    `).get(safeInvoiceKey)
 
     if (!invoice) {
       const error = new Error('Invoice was not found.')

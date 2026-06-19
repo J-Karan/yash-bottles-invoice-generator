@@ -32,6 +32,7 @@ import {
   updateBuyer,
   updateItem,
 } from './invoice-core.js'
+import { normalizeInvoiceKey, sanitizeHeaderFilenameBase } from './input-validation.js'
 
 const app = express()
 const allowedCorsOrigins = new Set(
@@ -68,7 +69,8 @@ app.use(cors({
     callback(null, false)
   },
 }))
-app.use(express.json())
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '32kb', strict: true }))
+app.use(handleJsonBodyError)
 
 function securityHeaders(_req, res, next) {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
@@ -251,7 +253,7 @@ app.get('/api/invoices/:invoiceKey', async (req, res) => {
     await dbReady
     res.json({ invoice: await readInvoiceDraft(req.params.invoiceKey) })
   } catch (error) {
-    res.status(404).json({ error: error.message })
+    res.status(error.statusCode || 404).json({ error: error.message })
   }
 })
 
@@ -284,10 +286,11 @@ app.get('/api/eway/readiness', async (_req, res) => {
 
 app.get('/api/eway/invoices/:invoiceKey/bulk-json', async (req, res) => {
   try {
-    const payload = buildEwayBulkJson(req.params.invoiceKey, {
+    const invoiceKey = normalizeInvoiceKey(req.params.invoiceKey)
+    const payload = buildEwayBulkJson(invoiceKey, {
       distanceKm: req.query?.distanceKm,
     })
-    const filename = `${req.params.invoiceKey}-eway.json`
+    const filename = `${sanitizeHeaderFilenameBase(invoiceKey, 'invoice')}-eway.json`
 
     res.setHeader('Content-Type', 'application/json')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
@@ -349,6 +352,34 @@ if (fsSync.existsSync(distDir)) {
     }
 
     res.sendFile(path.join(distDir, 'index.html'))
+  })
+}
+
+app.use(handleUnexpectedError)
+
+function handleJsonBodyError(error, _req, res, next) {
+  if (error?.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Request body must be valid JSON.' })
+    return
+  }
+
+  if (error?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Request body is too large.' })
+    return
+  }
+
+  next(error)
+}
+
+function handleUnexpectedError(error, _req, res, next) {
+  if (res.headersSent) {
+    next(error)
+    return
+  }
+
+  const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500
+  res.status(statusCode).json({
+    error: statusCode >= 500 ? 'Unexpected server error.' : error.message,
   })
 }
 

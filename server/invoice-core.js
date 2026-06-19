@@ -14,6 +14,11 @@ import {
 } from './config.js'
 import { getBusinessDateString } from './date-utils.js'
 import {
+  normalizeInvoiceDate,
+  normalizeInvoiceKey,
+  normalizeVehicleNumber,
+} from './input-validation.js'
+import {
   buildInvoiceLines,
   calculateInvoiceTotals,
   deriveFinancialYearSuffix,
@@ -828,12 +833,8 @@ async function buildInvoicePayload(input) {
     throw new Error(`This template supports up to ${maxLineItems} item rows per invoice.`)
   }
 
-  const vehicleNumber = String(input.vehicleNumber || '').trim().toUpperCase()
-  if (!vehicleNumber) {
-    throw new Error('Vehicle number is required.')
-  }
-
-  const invoiceDate = input.invoiceDate || getBusinessDateString()
+  const vehicleNumber = normalizeVehicleNumber(input.vehicleNumber)
+  const invoiceDate = normalizeInvoiceDate(input.invoiceDate || getBusinessDateString())
   const lines = buildInvoiceLines(lineItemsInput, items)
   const totals = calculateInvoiceTotals(lines)
 
@@ -841,11 +842,12 @@ async function buildInvoicePayload(input) {
   let invoiceKey
 
   if (input.editInvoiceKey) {
+    const editInvoiceKey = normalizeInvoiceKey(input.editInvoiceKey)
     const existingInvoice = db.prepare(`
       SELECT invoice_number, invoice_key
       FROM invoices
       WHERE invoice_key = ?
-    `).get(String(input.editInvoiceKey).trim())
+    `).get(editInvoiceKey)
 
     if (!existingInvoice) {
       throw new Error('Invoice to update was not found.')

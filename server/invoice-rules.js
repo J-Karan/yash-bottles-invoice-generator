@@ -1,3 +1,5 @@
+const maxBagsPerLine = 100000
+
 function deriveFinancialYearSuffix(invoiceDate) {
   const source = String(invoiceDate || '').trim()
   const isoMatch = source.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -49,6 +51,9 @@ function buildInvoiceLines(lineItemsInput, items) {
     const bags = Number(line.bags)
     if (!Number.isFinite(bags) || bags <= 0) {
       throw new Error(`Bags must be greater than zero for line ${index + 1}.`)
+    }
+    if (bags > maxBagsPerLine) {
+      throw new Error(`Bags cannot exceed ${maxBagsPerLine} for line ${index + 1}.`)
     }
 
     const bottlesPerBag = Number(item.Bottles_Per_Bag)
@@ -109,5 +114,6 @@ export {
   buildInvoiceLines,
   calculateInvoiceTotals,
   deriveFinancialYearSuffix,
+  maxBagsPerLine,
   roundCurrency,
 }

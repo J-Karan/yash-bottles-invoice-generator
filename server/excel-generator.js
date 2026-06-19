@@ -7,18 +7,18 @@ async function generateExcelInvoice(invoice, outputPath) {
   await workbook.xlsx.readFile(templatePath)
   const sheet = workbook.getWorksheet('Temp') || workbook.worksheets[0]
 
-  sheet.getCell('J2').value = invoice.invoiceNumber
-  sheet.getCell('J3').value = formatDate(invoice.invoiceDate)
-  sheet.getCell('J4').value = invoice.vehicleNumber
+  sheet.getCell('J2').value = safeExcelText(invoice.invoiceNumber)
+  sheet.getCell('J3').value = safeExcelText(formatDate(invoice.invoiceDate))
+  sheet.getCell('J4').value = safeExcelText(invoice.vehicleNumber)
 
-  sheet.getCell('A7').value = invoice.buyer.Buyer_Name
-  sheet.getCell('A8').value = sanitizeLine(invoice.buyer.Address_Line1)
-  sheet.getCell('A9').value = sanitizeLine(invoice.buyer.Address_Line2)
-  sheet.getCell('A10').value = [invoice.buyer.Address_Line3, invoice.buyer.City_State_Pin].filter(Boolean).join(', ')
-  sheet.getCell('A11').value = `GSTIN: ${invoice.buyer.GSTIN}`
+  sheet.getCell('A7').value = safeExcelText(invoice.buyer.Buyer_Name)
+  sheet.getCell('A8').value = safeExcelText(invoice.buyer.Address_Line1)
+  sheet.getCell('A9').value = safeExcelText(invoice.buyer.Address_Line2)
+  sheet.getCell('A10').value = safeExcelText([invoice.buyer.Address_Line3, invoice.buyer.City_State_Pin].filter(Boolean).join(', '))
+  sheet.getCell('A11').value = safeExcelText(`GSTIN: ${invoice.buyer.GSTIN}`)
 
-  sheet.getCell('I7').value = invoice.buyer.Ship_To_Name || 'SAME As TO'
-  sheet.getCell('I8').value = invoice.buyer.Ship_To_Address || 'SAME As TO'
+  sheet.getCell('I7').value = safeExcelText(invoice.buyer.Ship_To_Name || 'SAME As TO')
+  sheet.getCell('I8').value = safeExcelText(invoice.buyer.Ship_To_Address || 'SAME As TO')
   sheet.getCell('I9').value = ''
   sheet.getCell('I10').value = ''
   sheet.getCell('I11').value = ''
@@ -38,8 +38,8 @@ async function generateExcelInvoice(invoice, outputPath) {
   invoice.lines.forEach((line, index) => {
     const row = firstRow + index
     sheet.getCell(`A${row}`).value = index + 1
-    sheet.getCell(`B${row}`).value = line.item.Description
-    sheet.getCell(`C${row}`).value = line.item.HSN_Code
+    sheet.getCell(`B${row}`).value = safeExcelText(line.item.Description)
+    sheet.getCell(`C${row}`).value = safeExcelText(line.item.HSN_Code)
     sheet.getCell(`D${row}`).value = line.quantity
     sheet.getCell(`E${row}`).value = line.grossRate
     sheet.getCell(`G${row}`).value = line.nonTaxableRate
@@ -83,4 +83,9 @@ function applyCurrencyFormatting(sheet, cells) {
   })
 }
 
-export { generateExcelInvoice }
+function safeExcelText(value) {
+  const text = sanitizeLine(value)
+  return /^[=+\-@]/.test(text) ? `'${text}` : text
+}
+
+export { generateExcelInvoice, safeExcelText }

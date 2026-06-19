@@ -16,5 +16,6 @@ playwright-report/
 .env
 .env.local
 !.env.example
+secrets.md
 .DS_Store
 Thumbs.db

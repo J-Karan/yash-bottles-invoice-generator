@@ -157,9 +157,12 @@ current version number, and clicking it opens the in-app change log before login
 
 Current release:
 
-- `0.1.1` - login version link, in-app change log page, and cleaner invoice history total display
-- `0.1.0` - initial invoice workspace with invoice generation, Excel/PDF downloads, E-way JSON,
-  master data management, invoice history, and payment tracking
+- `0.3.4` - UX polish for history actions, E-way distance entry, preview modal accessibility,
+  request hardening, and safer Nyx backup/deploy handling.
+- `0.3.3` - historical preview consistency fixes for legacy bags, quantities, and separators.
+- `0.3.2` - historical preview now uses saved invoice snapshots instead of recalculating old records.
+- `0.3.1` - server repository refactor out of `invoice-core.js`.
+- `0.3.0` - centralized frontend invoice calculation helpers.
 
 When shipping a user-facing update:
 

@@ -3,6 +3,15 @@ import { roundCurrency } from './invoice-rules.js'
 import { safeEqual } from './secret-utils.js'
 import { invoiceServiceFee, paymentPassword } from './config.js'
 import { deleteInvoiceArtifacts } from './invoice-artifacts.js'
+import {
+  normalizeCodeField,
+  normalizeGstin,
+  normalizeHsnCode,
+  normalizeInvoiceKey,
+  normalizeNonNegativeAmount,
+  normalizePositiveInteger,
+  normalizeTextField,
+} from './input-validation.js'
 
 let db
 
@@ -70,54 +79,29 @@ function mapItemRow(row) {
 }
 
 function normalizeBuyerInput(input, options = {}) {
-  const buyerCode = String(input.Buyer_Code || '').trim().toUpperCase()
-  const buyerName = sanitizeLine(input.Buyer_Name)
-
-  if (options.requireCode && !buyerCode) {
-    throw new Error('Buyer code is required.')
-  }
-  if (!buyerName) {
-    throw new Error('Buyer name is required.')
-  }
-
   return {
-    Buyer_Code: buyerCode,
-    Buyer_Name: buyerName,
-    Address_Line1: sanitizeLine(input.Address_Line1),
-    Address_Line2: sanitizeLine(input.Address_Line2),
-    Address_Line3: sanitizeLine(input.Address_Line3),
-    City_State_Pin: sanitizeLine(input.City_State_Pin),
-    GSTIN: sanitizeLine(input.GSTIN).toUpperCase(),
-    Ship_To_Name: sanitizeLine(input.Ship_To_Name),
-    Ship_To_Address: sanitizeLine(input.Ship_To_Address),
+    Buyer_Code: normalizeCodeField(input.Buyer_Code, 'Buyer code', { required: options.requireCode }),
+    Buyer_Name: normalizeTextField(input.Buyer_Name, 'Buyer name', { required: true, maxLength: 120 }),
+    Address_Line1: normalizeTextField(input.Address_Line1, 'Address line 1', { maxLength: 160 }),
+    Address_Line2: normalizeTextField(input.Address_Line2, 'Address line 2', { maxLength: 160 }),
+    Address_Line3: normalizeTextField(input.Address_Line3, 'Address line 3', { maxLength: 160 }),
+    City_State_Pin: normalizeTextField(input.City_State_Pin, 'City/state/pin', { maxLength: 160 }),
+    GSTIN: normalizeGstin(input.GSTIN),
+    Ship_To_Name: normalizeTextField(input.Ship_To_Name, 'Ship-to name', { maxLength: 120 }),
+    Ship_To_Address: normalizeTextField(input.Ship_To_Address, 'Ship-to address', { maxLength: 260 }),
   }
 }
 
 function normalizeItemInput(input, options = {}) {
-  const itemCode = String(input.Item_Code || '').trim().toUpperCase()
-  const description = sanitizeLine(input.Description)
-  const hsnCode = String(input.HSN_Code || '').trim()
-  const grossRate = Number(input.Gross_Rate)
-  const nonTaxableRate = Number(input.Non_Taxable_Rate)
-  const bottlesPerBag = Number(input.Bottles_Per_Bag)
+  const itemCode = normalizeCodeField(input.Item_Code, 'Item code', { required: options.requireCode })
+  const description = normalizeTextField(input.Description, 'Item description', { required: true, maxLength: 120 })
+  const hsnCode = normalizeHsnCode(input.HSN_Code)
+  const grossRate = normalizeNonNegativeAmount(input.Gross_Rate, 'Gross rate')
+  const nonTaxableRate = normalizeNonNegativeAmount(input.Non_Taxable_Rate, 'Non-taxable rate')
+  const bottlesPerBag = normalizePositiveInteger(input.Bottles_Per_Bag, 'Bottles per bag')
 
-  if (options.requireCode && !itemCode) {
-    throw new Error('Item code is required.')
-  }
-  if (!description) {
-    throw new Error('Item description is required.')
-  }
-  if (!Number.isFinite(grossRate) || grossRate < 0) {
-    throw new Error('Gross rate must be a valid number.')
-  }
-  if (!Number.isFinite(nonTaxableRate) || nonTaxableRate < 0) {
-    throw new Error('Non-taxable rate must be a valid number.')
-  }
   if (nonTaxableRate > grossRate) {
     throw new Error('Non-taxable rate cannot be greater than gross rate.')
-  }
-  if (!Number.isFinite(bottlesPerBag) || bottlesPerBag <= 0) {
-    throw new Error('Bottles per bag must be greater than zero.')
   }
 
   return {
@@ -126,9 +110,9 @@ function normalizeItemInput(input, options = {}) {
     HSN_Code: hsnCode,
     Gross_Rate: roundCurrency(grossRate),
     Non_Taxable_Rate: roundCurrency(nonTaxableRate),
-    Bottles_Per_Bag: Math.round(bottlesPerBag),
-    Dad_Writes_As: sanitizeLine(input.Dad_Writes_As),
-    Category: sanitizeLine(input.Category),
+    Bottles_Per_Bag: bottlesPerBag,
+    Dad_Writes_As: normalizeTextField(input.Dad_Writes_As, 'Alternate item names', { maxLength: 200 }),
+    Category: normalizeTextField(input.Category, 'Category', { maxLength: 80 }),
   }
 }
 
@@ -308,12 +292,7 @@ async function readInvoiceHistory(limit = 200) {
 }
 
 async function readInvoiceDraft(invoiceKey) {
-  const key = String(invoiceKey || '').trim()
-  if (!key) {
-    const error = new Error('Invoice key is required.')
-    error.statusCode = 400
-    throw error
-  }
+  const key = normalizeInvoiceKey(invoiceKey)
 
   const invoice = db.prepare(`
     SELECT
@@ -451,12 +430,7 @@ async function readInvoiceDraft(invoiceKey) {
 }
 
 async function deleteInvoiceHistory(invoiceKey) {
-  const key = String(invoiceKey || '').trim()
-  if (!key) {
-    const error = new Error('Invoice key is required.')
-    error.statusCode = 400
-    throw error
-  }
+  const key = normalizeInvoiceKey(invoiceKey)
 
   const invoice = db.prepare(`
     SELECT invoice_number, invoice_key, invoice_date

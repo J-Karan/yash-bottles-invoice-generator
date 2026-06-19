@@ -18,12 +18,18 @@ service_name="ewb-invoice"
 
 buyers_csv="$repo/data/masters/Buyers_Master.csv"
 items_csv="$repo/data/masters/Items_Master.csv"
+db_file="$repo/data/invoice-app.sqlite"
 
 test -f "$buyers_csv"
 test -f "$items_csv"
 mkdir -p "$backup"
 cp -p "$buyers_csv" "$backup/"
 cp -p "$items_csv" "$backup/"
+
+if [ -f "$db_file" ]; then
+  sqlite3 "$db_file" ".backup '$backup/invoice-app.sqlite'"
+  echo "SQLite database safely backed up to: $backup/invoice-app.sqlite"
+fi
 
 cd "$repo"
 git fetch origin main

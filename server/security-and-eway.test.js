@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { pruneExpiredAttempts } from './rate-limit.js'
 import { safeEqual } from './secret-utils.js'
+import { maxBagsPerLine } from './invoice-rules.js'
 
 process.env.ADMIN_PASSWORD ||= 'test-admin-password'
 process.env.APP_PASSWORD ||= 'test-app-password'
@@ -12,6 +13,105 @@ describe('safeEqual', () => {
     assert.equal(safeEqual('same-secret', 'same-secret'), true)
     assert.equal(safeEqual('same-secret', 'other-secret'), false)
     assert.equal(safeEqual('same-secret', 'short'), false)
+  })
+})
+
+describe('request hardening', () => {
+  it('returns JSON errors for malformed and oversized JSON bodies', async () => {
+    await withTestServer(async (baseUrl) => {
+      const malformed = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: '{"username":',
+      })
+      assert.equal(malformed.status, 400)
+      assert.deepEqual(await malformed.json(), { error: 'Request body must be valid JSON.' })
+
+      const oversized = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: 'jkaran',
+          password: 'x'.repeat(40 * 1024),
+        }),
+      })
+      assert.equal(oversized.status, 413)
+      assert.deepEqual(await oversized.json(), { error: 'Request body is too large.' })
+    })
+  })
+
+  it('rejects unsafe invoice keys before building download headers', async () => {
+    await withTestServer(async (baseUrl) => {
+      const token = await loginForTest(baseUrl)
+      try {
+        const response = await fetch(`${baseUrl}/api/eway/invoices/${encodeURIComponent('bad"key')}/bulk-json`, {
+          headers: {
+            'X-Invoice-Session': token,
+          },
+        })
+
+        assert.equal(response.status, 400)
+        assert.equal(response.headers.get('content-disposition'), null)
+        assert.deepEqual(await response.json(), { error: 'Invoice key format is invalid.' })
+      } finally {
+        await logoutForTest(baseUrl, token)
+      }
+    })
+  })
+
+  it('neutralizes spreadsheet formula text before writing Excel cells', async () => {
+    const { safeExcelText } = await import('./excel-generator.js')
+
+    assert.equal(safeExcelText('=HYPERLINK("https://bad.example")'), '\'=HYPERLINK("https://bad.example")')
+    assert.equal(safeExcelText('@SUM(1,1)'), "'@SUM(1,1)")
+    assert.equal(safeExcelText('Normal customer'), 'Normal customer')
+  })
+
+  it('rejects malformed invoice dates, vehicle numbers, and extreme bag counts', async () => {
+    const { buildInvoicePayload, dbReady, readBuyers, readItems } = await import('./invoice-core.js')
+    await dbReady
+    const [buyer] = await readBuyers()
+    const [item] = await readItems()
+
+    await assert.rejects(
+      () =>
+        buildInvoicePayload({
+          buyerCode: buyer.Buyer_Code,
+          shipToOptionId: buyer.Default_Ship_To_Option_Id,
+          vehicleNumber: 'MH12<script>',
+          invoiceDate: '2026-05-29',
+          lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+        }),
+      /Vehicle number can contain only letters, numbers, and hyphens/,
+    )
+
+    await assert.rejects(
+      () =>
+        buildInvoicePayload({
+          buyerCode: buyer.Buyer_Code,
+          shipToOptionId: buyer.Default_Ship_To_Option_Id,
+          vehicleNumber: 'MH12AB1234',
+          invoiceDate: 'May 29, 2026',
+          lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+        }),
+      /Invoice date must use YYYY-MM-DD format/,
+    )
+
+    await assert.rejects(
+      () =>
+        buildInvoicePayload({
+          buyerCode: buyer.Buyer_Code,
+          shipToOptionId: buyer.Default_Ship_To_Option_Id,
+          vehicleNumber: 'MH12AB1234',
+          invoiceDate: '2026-05-29',
+          lineItems: [{ itemCode: item.Item_Code, bags: String(maxBagsPerLine + 1) }],
+        }),
+      /Bags cannot exceed/,
+    )
   })
 })
 
@@ -30,6 +130,7 @@ describe('memory cleanup', () => {
 
   it('prunes abandoned app and admin sessions when new sessions are created', async () => {
     const originalNow = Date.now
+    const baseNow = originalNow()
     const {
       createAppSession,
       getAppSessionCount,
@@ -49,11 +150,11 @@ describe('memory cleanup', () => {
     let freshAdminToken = ''
 
     try {
-      Date.now = () => 1
+      Date.now = () => baseNow
       appToken = createAppSession()
       adminToken = createAdminSession()
 
-      Date.now = () => Math.max(appTtlMs, adminTtlMs) + cleanupDelayMs
+      Date.now = () => baseNow + Math.max(appTtlMs, adminTtlMs) + cleanupDelayMs
       freshAppToken = createAppSession()
       freshAdminToken = createAdminSession()
 
@@ -90,3 +191,46 @@ describe('stateFromGstin', () => {
     })
   })
 })
+
+async function withTestServer(callback) {
+  const { app } = await import('./app.js')
+  const server = app.listen(0, '127.0.0.1')
+
+  await new Promise((resolve) => server.once('listening', resolve))
+  const { port } = server.address()
+
+  try {
+    await callback(`http://127.0.0.1:${port}`)
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()))
+    })
+  }
+}
+
+async function loginForTest(baseUrl) {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      username: process.env.APP_USERNAME || 'jkaran',
+      password: process.env.APP_PASSWORD,
+    }),
+  })
+  const data = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.ok(data.token)
+  return data.token
+}
+
+async function logoutForTest(baseUrl, token) {
+  await fetch(`${baseUrl}/api/auth/logout`, {
+    method: 'POST',
+    headers: {
+      'X-Invoice-Session': token,
+    },
+  })
+}
