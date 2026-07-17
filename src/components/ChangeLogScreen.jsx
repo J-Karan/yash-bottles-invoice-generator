@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.3.8',
+    title: 'Hide Delete on Protected Invoices',
+    changes: [
+      'Removed the Delete button entirely from invoices that cannot be deleted, instead of showing a disabled button that still looked clickable.',
+      'Delete now appears only on the latest invoice of each financial year, matching what the server actually allows.',
+      'Added a UI regression test proving older invoices render without a Delete action.',
+    ],
+  },
+  {
     version: '0.3.7',
     title: 'UI/UX Bug-Fix & Accessibility Pass',
     changes: [

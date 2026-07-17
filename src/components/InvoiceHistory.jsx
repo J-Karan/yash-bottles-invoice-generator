@@ -162,23 +162,18 @@ export function InvoiceHistory({
                         >
                           {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
                         </button>
-                        <button
-                          className="text-button history-action-delete"
-                          type="button"
-                          aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                          title={
-                            deletableInvoiceKeys?.has(invoice.invoiceKey)
-                              ? `Delete invoice ${invoice.invoiceNumber}`
-                              : 'Only the latest invoice of each financial year can be deleted'
-                          }
-                          onClick={() => handleDeleteInvoice(invoice)}
-                          disabled={
-                            historyActionBusyKey === invoice.invoiceKey ||
-                            !deletableInvoiceKeys?.has(invoice.invoiceKey)
-                          }
-                        >
-                          {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
-                        </button>
+                        {deletableInvoiceKeys?.has(invoice.invoiceKey) ? (
+                          <button
+                            className="text-button history-action-delete"
+                            type="button"
+                            aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                            title={`Delete invoice ${invoice.invoiceNumber}`}
+                            onClick={() => handleDeleteInvoice(invoice)}
+                            disabled={historyActionBusyKey === invoice.invoiceKey}
+                          >
+                            {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
+                          </button>
+                        ) : null}
                         {invoice.excelAvailable ? (
                           <button
                             className="text-button history-action-file history-action-excel"
@@ -270,23 +265,18 @@ export function InvoiceHistory({
                   >
                     {historyActionBusyKey === invoice.invoiceKey ? 'Opening...' : 'Edit'}
                   </button>
-                  <button
-                    className="text-button history-action-delete"
-                    type="button"
-                    aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                    title={
-                      deletableInvoiceKeys?.has(invoice.invoiceKey)
-                        ? `Delete invoice ${invoice.invoiceNumber}`
-                        : 'Only the latest invoice of each financial year can be deleted'
-                    }
-                    onClick={() => handleDeleteInvoice(invoice)}
-                    disabled={
-                      historyActionBusyKey === invoice.invoiceKey ||
-                      !deletableInvoiceKeys?.has(invoice.invoiceKey)
-                    }
-                  >
-                    {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
-                  </button>
+                  {deletableInvoiceKeys?.has(invoice.invoiceKey) ? (
+                    <button
+                      className="text-button history-action-delete"
+                      type="button"
+                      aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                      title={`Delete invoice ${invoice.invoiceNumber}`}
+                      onClick={() => handleDeleteInvoice(invoice)}
+                      disabled={historyActionBusyKey === invoice.invoiceKey}
+                    >
+                      {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
+                    </button>
+                  ) : null}
                   {invoice.excelAvailable ? (
                     <button
                       className="text-button history-action-file history-action-excel"

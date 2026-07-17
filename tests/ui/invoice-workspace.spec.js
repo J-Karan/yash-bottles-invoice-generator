@@ -95,6 +95,18 @@ const invoice = {
   },
 }
 
+const olderInvoice = {
+  ...invoice,
+  invoiceNumber: '000/2026-27',
+  invoiceKey: '000-2026-27',
+  invoiceDate: '2026-05-20',
+  vehicleNumber: 'MH12AB0000',
+  files: {
+    excel: '/downloads/excel/2026-27/05-May/000-2026-27.xlsx',
+    pdf: '/downloads/pdf/2026-27/05-May/000-2026-27.pdf',
+  },
+}
+
 async function mockAuthenticatedApis(page) {
   await page.addInitScript(() => {
     localStorage.setItem('invoiceAppToken', 'ui-test-token')
@@ -104,8 +116,8 @@ async function mockAuthenticatedApis(page) {
   await page.route('**/api/invoices/history?limit=300', (route) =>
     route.fulfill({
       json: {
-        invoices: [invoice],
-        paymentSummary: { totalInvoices: 1, paidInvoices: 0, unpaidInvoices: 1, invoiceRate: 100, amountDue: 100, paidAmountTotal: 0 },
+        invoices: [invoice, olderInvoice],
+        paymentSummary: { totalInvoices: 2, paidInvoices: 0, unpaidInvoices: 2, invoiceRate: 100, amountDue: 200, paidAmountTotal: 0 },
       },
     }),
   )
@@ -261,6 +273,10 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   await visibleDistanceInput.fill('75')
   await expect(page.locator('button:visible', { hasText: 'E-way JSON' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('history-tab.png'), fullPage: true })
+
+  await expectAnyVisibleText(page, '000/2026-27')
+  await expect(page.getByRole('button', { name: 'Delete invoice 001/2026-27' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Delete invoice 000/2026-27' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Delete' }).first().click()
   await expect(page.getByRole('heading', { name: 'Delete invoice 001/2026-27?' })).toBeVisible()
