@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.3.9',
+    title: 'History Action Layout Polish',
+    changes: [
+      'The Edit button now stretches across the full action row on invoices without a Delete button, removing the empty gap in both desktop and mobile views.',
+      'The version pill is no longer hidden on small screens, so the changelog stays reachable from phones and tablets after logging in.',
+    ],
+  },
+  {
     version: '0.3.8',
     title: 'Hide Delete on Protected Invoices',
     changes: [

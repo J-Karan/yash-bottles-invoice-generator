@@ -141,7 +141,7 @@ export function InvoiceHistory({
                       {invoice.paidAt ? <small>{formatDisplayDateTime(invoice.paidAt)}</small> : null}
                     </td>
                     <td>
-                      <div className="history-downloads">
+                      <div className={`history-downloads ${deletableInvoiceKeys?.has(invoice.invoiceKey) ? '' : 'history-downloads-no-delete'}`}>
                         <button
                           className="text-button history-action-preview"
                           type="button"
@@ -244,7 +244,7 @@ export function InvoiceHistory({
                   </div>
                 </dl>
 
-                <div className="history-downloads">
+                <div className={`history-downloads ${deletableInvoiceKeys?.has(invoice.invoiceKey) ? '' : 'history-downloads-no-delete'}`}>
                   <button
                     className="text-button history-action-preview"
                     type="button"

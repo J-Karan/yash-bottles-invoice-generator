@@ -1447,6 +1447,10 @@
   color: #24538d;
 }
 
+.history-downloads-no-delete .history-action-edit {
+  grid-column: 1 / span 6;
+}
+
 .history-downloads .history-action-file {
   min-width: 0;
 }
@@ -1957,7 +1961,8 @@
   }
 
   .workspace-version {
-    display: none;
+    padding: 6px 10px;
+    font-size: 0.72rem;
   }
 
   .line-item-layout,
