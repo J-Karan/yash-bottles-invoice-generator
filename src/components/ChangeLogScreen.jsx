@@ -1,5 +1,15 @@
 const changeLogEntries = [
   {
+    version: '0.3.6',
+    title: 'Proxy-Aware Rate Limiting & Startup Hardening',
+    changes: [
+      'Enabled Express trust proxy for the loopback reverse proxy, so login rate limits now apply per real client instead of treating everyone behind Caddy as one shared address.',
+      'Added a regression test proving repeated failed logins from one client cannot lock other clients out.',
+      'Set a 5-second SQLite busy timeout on the E-way module\'s own database connections to prevent lock errors under concurrent writes.',
+      'Made the E-way readiness, E-way bulk JSON, and mark-paid endpoints wait for database initialization before serving requests issued right after startup.',
+    ],
+  },
+  {
     version: '0.3.5',
     title: 'Clean Dev Audit & Toolchain Patch',
     changes: [

@@ -58,6 +58,7 @@ const appLoginLimiter = createRateLimiter({
 })
 
 app.disable('x-powered-by')
+app.set('trust proxy', 'loopback')
 app.use(securityHeaders)
 app.use(cors({
   origin(origin, callback) {
@@ -269,6 +270,7 @@ app.delete('/api/invoices/:invoiceKey', async (req, res) => {
 
 app.post('/api/invoices/mark-paid', paymentLimiter, async (req, res) => {
   try {
+    await dbReady
     const result = await markUnpaidInvoicesPaid(req.body?.password)
     res.json(result)
   } catch (error) {
@@ -278,6 +280,7 @@ app.post('/api/invoices/mark-paid', paymentLimiter, async (req, res) => {
 
 app.get('/api/eway/readiness', async (_req, res) => {
   try {
+    await dbReady
     res.json(readEwayReadiness())
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -286,6 +289,7 @@ app.get('/api/eway/readiness', async (_req, res) => {
 
 app.get('/api/eway/invoices/:invoiceKey/bulk-json', async (req, res) => {
   try {
+    await dbReady
     const invoiceKey = normalizeInvoiceKey(req.params.invoiceKey)
     const payload = buildEwayBulkJson(invoiceKey, {
       distanceKm: req.query?.distanceKm,

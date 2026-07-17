@@ -63,6 +63,32 @@ describe('request hardening', () => {
     })
   })
 
+  it('rate limits login per forwarded client ip, not globally', async () => {
+    await withTestServer(async (baseUrl) => {
+      const badLogin = (forwardedFor) =>
+        fetch(`${baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Forwarded-For': forwardedFor,
+          },
+          body: JSON.stringify({ username: 'jkaran', password: 'wrong-password' }),
+        })
+
+      let lastStatus = 0
+      for (let attempt = 1; attempt <= 11; attempt += 1) {
+        const response = await badLogin('203.0.113.5')
+        lastStatus = response.status
+        await response.json()
+      }
+      assert.equal(lastStatus, 429)
+
+      const otherClient = await badLogin('203.0.113.6')
+      assert.equal(otherClient.status, 401)
+      await otherClient.json()
+    })
+  })
+
   it('neutralizes spreadsheet formula text before writing Excel cells', async () => {
     const { safeExcelText } = await import('./excel-generator.js')
 

@@ -1,6 +1,6 @@
 # EWB Invoice System - AI Agent Handoff
 
-Last updated: 2026-06-20 IST.
+Last updated: 2026-07-17 IST.
 
 This is the first file an AI agent should read for this project. It summarizes the local
 repository, the live Nyx deployment, runtime data shape, verification results, and the
@@ -154,12 +154,17 @@ Configuration:
 
 Auth and security:
 
-- `server/app-session.js`: app login session, 12-hour in-memory sessions.
-- `server/admin-session.js`: admin session, 8-hour in-memory sessions.
-- `server/rate-limit.js`: in-memory rate limiting for sensitive auth/payment flows.
+- `server/app-session.js`: app login session, 12-hour sliding in-memory sessions (each
+  authenticated request extends expiry by 12 hours from now).
+- `server/admin-session.js`: admin session, 8-hour sliding in-memory sessions.
+- `server/rate-limit.js`: in-memory rate limiting keyed by `req.ip` + path. App login
+  10 attempts / 15 min, admin login 8 / 15 min, payment 5 / 15 min.
+- Express `trust proxy` is NOT set. Behind Caddy every request's `req.ip` is `127.0.0.1`,
+  so in production these limits are effectively global across all users, not per-client.
+  See Known Current Risks.
 - `server/secret-utils.js`: timing-safe secret comparison.
-- Local uncommitted hardening exists in `server/app.js`, `server/input-validation.js`,
-  `server/excel-generator.js`, `server/invoice-formatting.js`, and related tests.
+- The formula-injection hardening in `server/excel-generator.js` (`safeExcelText`) and the
+  input validation in `server/input-validation.js` are committed and deployed.
 
 Invoice core:
 
@@ -207,24 +212,29 @@ Main tables:
 - `eway_buyer_distances`
 - `eway_ambiguous_buyer_distances`
 
-Production Nyx database snapshot from 2026-06-20:
+Production Nyx database snapshot from 2026-07-17:
 
 - Buyers: 8
 - Buyers missing GSTIN: 0
-- Buyers with ship-to profiles: 2
+- Buyers with ship-to profiles: 1
 - Items: 27
-- Item categories: 2
-- Invoices: 54
-- Invoice date range: 2025-10-30 to 2026-06-20
-- Unpaid invoices: 22
+- Invoices: 58
+- Invoice date range: 2025-10-30 to 2026-07-03
+- Unpaid invoices: 26
 - Paid invoices: 32
-- Invoice lines: 123
-- Min/max line bags: 0 / 568
-- Min/max line quantity: 144 / 45072
-- Sequences: `2025-26` next serial 33, `2026-27` next serial 23
-- Latest verified invoice: `022/2026-27`, key `022-2026-27`, date `2026-06-20`
-- Legacy zero bag/BPB data: 75 lines across 33 historical invoices
-- Generated artifacts: 54 Excel and 54 PDF files, with DB/artifact consistency verified
+- Invoice lines: 132
+- Sequences: `2025-26` next serial 33, `2026-27` next serial 27
+- Latest verified invoice: `026/2026-27`, key `026-2026-27`, date `2026-07-03`
+- Generated artifacts: 58 Excel and 58 PDF files, matching the 58 DB invoices
+
+Payment status is stored as the `is_paid` integer column on `invoices` (plus `paid_at`,
+`paid_amount`, `payment_batch_note`). There is no `payment_status` column; query `is_paid`.
+
+Earlier snapshot from 2026-06-20, kept for trend reference: 54 invoices, 22 unpaid,
+123 lines, `2026-27` next serial 23, latest `022/2026-27`. That audit also recorded
+2 buyers with ship-to profiles, 2 item categories, min/max line bags 0 / 568, min/max
+line quantity 144 / 45072, and legacy zero bag/BPB data of 75 lines across 33 historical
+invoices.
 
 Local database snapshot from 2026-06-20:
 
@@ -353,42 +363,49 @@ Production host:
 - Process manager: systemd service `ewb-invoice`
 - Reverse proxy: Caddy
 
-Production git state from 2026-06-20:
+Production git state from 2026-07-17:
 
 - Branch: `main`
 - Remote tracking: `origin/main`
 - Working tree: clean
-- Commit: `dd1c1eb`
-- Commit subject before this UX/hardening pass: `Fix historical invoice preview inconsistencies, legacy bags, and separators (v0.3.3)`
+- Commit: `b43090f`, subject `Release v0.3.5 dev audit cleanup`
+- Local and Nyx are on the same commit. The v0.3.4/v0.3.5 UX and hardening work described
+  elsewhere in this file as "not deployed yet" has since been released. There is no
+  deployment drift as of this audit.
 
 Production runtime:
 
 - Node: `v22.22.2`
-- npm: `10.9.7`
-- App version before this UX/hardening pass: `0.3.3`
+- App version: `0.3.5`
 - App command: `/usr/bin/node server/index.js`
 - App listens on: `127.0.0.1:5000`
 - Caddy listens on: ports 80 and 443
-- Health endpoint returned: `{"ok":true,"storage":"sqlite"}`
+- Loopback and public `/api/health` both returned `{"ok":true,"storage":"sqlite"}`.
+- Public health responded in about 0.16s with HTTP 200.
 
 systemd:
 
 - Service: `ewb-invoice`
-- State verified active/running.
-- Restart count verified as 0 during audit.
+- State verified active/running, continuously up since 2026-06-19.
+- Restart count verified as 0.
+- Resident memory about 95 MB.
 - Unit uses `EnvironmentFile=/home/ubuntu/ewb-invoice-system-git/.env`.
+- No warning-or-worse journal entries in the last 7 days.
 
 Caddy:
 
 - Caddyfile route: `152.67.2.68.nip.io, invoice.yashbottles.in`
 - Reverse proxy target: `127.0.0.1:5000`
-- Config validation passed during audit.
+- Service verified active.
 
-Host resources from 2026-06-20:
+Host resources from 2026-07-17:
 
-- Root disk: 58G total, 15G used, 44G available, 25 percent used.
-- Memory: 11Gi total, 9.0Gi used, 606Mi free, 2.4Gi available.
+- Root disk: 58G total, 14G used, 45G available, 24 percent used.
+- Memory: 11Gi total, 9.3Gi used, 346Mi free, 2.1Gi available.
 - Swap: none.
+- Nyx is a shared host. A Paper Minecraft server runs under `ubuntu` with a fixed 8G JVM
+  heap (`-Xms8G -Xmx8G`) and holds roughly 77 percent of system RAM. The invoice app is a
+  small consumer by comparison. See the memory risk note in Known Current Risks.
 
 ## Deployment Flow
 
@@ -415,9 +432,11 @@ Remote deployment steps:
 
 Important:
 
-- Local working tree currently contains uncommitted hardening changes that are not deployed
-  to Nyx yet.
-- Do not assume production has local uncommitted code until deployed.
+- As of 2026-07-17 the local tree is clean and Nyx matches it at commit `b43090f` (v0.3.5).
+  The hardening work that an earlier version of this file described as undeployed has
+  shipped.
+- Still do not assume production has local uncommitted code until deployed. Verify with
+  `git status` locally and `git log --oneline -1` on Nyx rather than trusting this file.
 
 ## Backups And Google Drive Sync
 
@@ -427,19 +446,38 @@ Verified scripts on Nyx:
 - `/home/ubuntu/bin/sync-generated-to-gdrive.sh`
 - `/home/ubuntu/bin/watch-generated-and-sync.sh`
 
-Verified services/timers:
+Verified services/timers, with their systemd scope:
 
-- `generated-gdrive-watch.service`: active/running.
-- `generated-gdrive-sync.timer`: active/waiting hourly fallback.
+The Google Drive sync units are **user units owned by `ubuntu`**, not system units. Inspect
+them with `systemctl --user`, not plain `systemctl`. A plain `systemctl is-active
+generated-gdrive-watch.service` reports `inactive` and `systemctl status` reports
+`Unit ... could not be found` even while the units are healthy. Do not read that as an
+outage.
+
+- `generated-gdrive-watch.service` (user scope): active/running.
+- `generated-gdrive-sync.timer` (user scope): active/waiting, hourly fallback.
+- `generated-gdrive-sync.service` (user scope): oneshot, inactive/dead between runs, which
+  is its normal resting state.
+- `ewb-backup.timer` and `ewb-backup.service` (system scope, `/etc/systemd/system/`): daily
+  backup at 02:30 UTC. Query these with plain `systemctl`.
 
 Verified behavior:
 
 - `watch-generated-and-sync.sh` uses `inotifywait` with debounce.
 - `sync-generated-to-gdrive.sh` uses `rclone copy` with flock locking.
 - Destination remote path: `gdrive:Backups/Yash Bottles/generated`.
-- Latest audit saw the newest invoice PDF/XLSX copied to Google Drive.
 - Backup script uses SQLite `.backup` and archives masters/templates/generated data.
-- Latest backup inspected had valid DB copy and generated/data tarball.
+- Daily backups are written to `/home/ubuntu/backups/ewb/<YYYYMMDD-HHMMSS>/`.
+- `/home/ubuntu/ewb-private-backups/masters/` holds the pre-deploy master CSV backups
+  created by `deploy-nyx.ps1`. It is a separate location from the daily backups above.
+
+Verified on 2026-07-17:
+
+- Hourly gdrive sync ran cleanly at 10:15, 11:16, and 12:17 UTC.
+- `gdrive:Backups/Yash Bottles/generated/pdf` contains `2025-26/` and `2026-27/`.
+- Daily backup ran successfully at 02:30 UTC and wrote `/home/ubuntu/backups/ewb/20260717-023004`.
+- Daily backups have no retention/pruning policy and accumulate indefinitely. Root disk was
+  at 24 percent, so this is not urgent, but pruning is a sensible follow-up.
 
 ## Local Office LAN Launcher
 
@@ -477,48 +515,84 @@ Production verification from 2026-06-20:
 - `npm audit --omit=dev`: 0 vulnerabilities.
 - Generated artifacts and DB invoice records matched exactly.
 
+Local verification from 2026-07-17:
+
+- `npm test`: passed, 36 tests across 17 suites, 0 failures.
+
+Production verification from 2026-07-17:
+
+- `systemctl is-active ewb-invoice`: active.
+- `systemctl is-active caddy`: active.
+- Loopback `/api/health`: ok.
+- Public `https://invoice.yashbottles.in/api/health`: HTTP 200, ok, about 0.16s.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- Generated artifacts and DB invoice records matched exactly at 58/58/58.
+- Daily backup and hourly Google Drive sync both verified running.
+
 ## Known Current Risks And Follow-Ups
 
 - Raw secret values must not be written into docs or commits.
-- Production should receive the local UX, accessibility, validation, backup, and hardening changes
-  only after tests pass and the Nyx deploy flow completes.
-- Sessions and rate limits are in-memory and reset on restart.
-- `src/App.jsx` and `src/App.css` are large and would benefit from careful extraction over time.
+- Host memory pressure is the main live risk. Nyx has 11Gi RAM, no swap, and roughly 2.1Gi
+  available, because a co-tenant Paper Minecraft server pins an 8G JVM heap. The invoice app
+  is small and stable, but under a memory spike the kernel OOM killer could select it.
+  Suggested mitigations, not yet applied: add a 2-4G swapfile, and set
+  `OOMScoreAdjust=-500` in the `[Service]` section of `/etc/systemd/system/ewb-invoice.service`
+  so the invoice app is chosen last.
+- Daily backups in `/home/ubuntu/backups/ewb/` have no retention policy and grow without
+  bound. Disk is at 24 percent, so this is a follow-up rather than an emergency.
+- Backup restores have not been drilled. Backups are verified to exist and to open, but a
+  practice restore into a temp path would confirm real recoverability.
+- Sessions and rate limits are in-memory and reset on restart, so every deploy logs users
+  out. Acceptable for a small office user base; revisit only if it becomes annoying.
+- `trust proxy` is not set in `server/app.js`, so behind Caddy the rate limiters see every
+  client as `127.0.0.1`. Brute-force protection still works (it is stricter than intended),
+  but 10 bad login attempts from anyone lock ALL users out of app login for 15 minutes.
+  Fix is one line, `app.set('trust proxy', 'loopback')`, plus a test.
+- `server/eway-core.js` opens its own short-lived SQLite connections per request and does
+  not set `busy_timeout` on them (the main connection sets 5000 ms). Concurrent writes
+  could surface SQLITE_BUSY errors on E-way endpoints.
+- The E-way routes and `/api/invoices/mark-paid` do not `await dbReady` before touching the
+  database. A request in the first moments after process start could hit an uninitialized
+  handle. All other API routes await it.
+- Server-side, editing an invoice allows an invoice-date change within the same financial
+  year; artifacts are then written under the new month folder and the old month's files are
+  not deleted. The UI currently prevents this by disabling the date field while editing, so
+  the gap is reachable only via direct API calls.
+- `src/App.jsx` (about 1350 lines) and `src/App.css` are large and would benefit from careful
+  extraction over time.
 - No React error boundary exists.
 - Tokens are stored in `localStorage`.
-- E-way has a separate DB connection.
 - Some invoice sequence logic is intentionally conservative, but any change around generation
   and DB writes needs careful tests.
-- `InvoicePreviewModal` lacks a focus trap and has some inline styling.
-- There is a known CSS variable issue around `.delete-modal-detail` using `var(--text)`.
-- Some frontend E-way warnings rely on hardcoded buyer codes.
-- `ewayDistanceOverrides` state appears unused by the current UI.
+- Minor frontend nits found in the 2026-07-17 audit: `InvoicePreviewModal` and
+  `readInvoiceDraft` key lines by item code, so an invoice with the same item on two lines
+  would produce duplicate React keys; loading a legacy zero-bag line for edit silently
+  defaults bags to 1 when the description regex cannot reconstruct it; and the live preview
+  math skips the server's per-line rounding, so paise-level display drift is possible.
 - Avoid broad refactors unless the user explicitly asks.
+
+Stale claims removed from this list after the 2026-07-17 code audit, kept here so future
+agents do not re-add them: `InvoicePreviewModal` now uses the `useModalTrap` focus trap;
+`.delete-modal-detail` now uses `var(--ink)` which is defined in `src/index.css`;
+`ewayDistanceOverrides` IS used (it backs the manual distance-entry inputs in
+`useEwayReadiness`); no hardcoded buyer codes exist in frontend E-way warnings (the only
+hardcoded location logic is the server-side `MIDC LONAND` distance default in
+`eway-core.js`).
 
 ## Git State At Audit Time
 
-Local branch:
+As of 2026-07-17:
 
-- `main...origin/main`
+- Local branch: `main`, tracking `origin/main`.
+- Local working tree: clean.
+- Local commit: `b43090f`, `Release v0.3.5 dev audit cleanup`.
+- Nyx commit: `b43090f`, working tree clean. Local and production are in sync.
 
-Modified files already present before this README cleanup:
+The modified and untracked files listed here in the 2026-06-20 audit, including
+`server/input-validation.js` and this file itself, have all since been committed.
 
-- `deploy-nyx.ps1`
-- `server/app.js`
-- `server/eway-core.js`
-- `server/excel-generator.js`
-- `server/invoice-core.js`
-- `server/invoice-formatting.js`
-- `server/invoice-repository.js`
-- `server/invoice-rules.js`
-- `server/security-and-eway.test.js`
-
-Untracked files already present before this README cleanup:
-
-- `00_README_FIRST_CONTEXT_FOR_AI_AGENTS.md`
-- `server/input-validation.js`
-
-Do not revert user or prior-agent changes just to get a clean tree. Work with them.
+If a future audit finds an unexpectedly dirty tree, do not revert user or prior-agent
+changes just to get a clean tree. Work with them.
 
 ## Agent Operating Notes
 

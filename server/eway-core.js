@@ -56,7 +56,9 @@ const stateCodeByGstinPrefix = {
 }
 
 function openDb() {
-  return new DatabaseSync(dbPath)
+  const db = new DatabaseSync(dbPath)
+  db.exec('PRAGMA busy_timeout = 5000')
+  return db
 }
 
 function readEwayReadiness() {
