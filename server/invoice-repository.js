@@ -354,7 +354,7 @@ async function readInvoiceDraft(invoiceKey) {
     WHERE buyer_code = ?
   `).get(invoice.buyer_code))
 
-  const savedLines = lines.map((line) => {
+  const savedLines = lines.map((line, lineIndex) => {
     let bags = Number(line.bags || 0)
     let bottlesPerBag = Number(line.bottles_per_bag || 0)
     let description = line.item_description_snapshot || ''
@@ -369,7 +369,7 @@ async function readInvoiceDraft(invoiceKey) {
     }
 
     return {
-      id: `saved-line-${line.item_code}`,
+      id: `saved-line-${lineIndex}-${line.item_code}`,
       itemCode: line.item_code,
       bags: bags,
       bottlesPerBag: bottlesPerBag,

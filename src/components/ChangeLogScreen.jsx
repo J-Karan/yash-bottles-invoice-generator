@@ -1,5 +1,18 @@
 const changeLogEntries = [
   {
+    version: '0.3.7',
+    title: 'UI/UX Bug-Fix & Accessibility Pass',
+    changes: [
+      'Delete is now disabled on invoices that cannot be deleted, instead of failing after the confirmation dialog; only the latest invoice of each financial year stays actionable.',
+      'A too-short or too-long vehicle number now gets a clear length message, and the field validates format directly in the browser before submitting.',
+      'Form errors scroll into view and announce to screen readers, so a failed generate is never invisible below the fold.',
+      'The live preview now uses the same per-line rounding as the server, removing rare one-paisa differences against saved invoices.',
+      'An expired login session now returns you to the login screen with an explanation instead of leaving dead buttons and scattered errors.',
+      'The changelog is now reachable after login from the version pill in the workspace header, and deleting an invoice shows a confirmation toast.',
+      'Accessibility polish: proper page heading, navigation landmark with current-view marker, larger touch targets on mobile history actions, cleaner screen-reader names for password fields, and singular/plural bag labels.',
+    ],
+  },
+  {
     version: '0.3.6',
     title: 'Proxy-Aware Rate Limiting & Startup Hardening',
     changes: [
@@ -178,7 +191,7 @@ const changeLogEntries = [
   },
 ]
 
-function ChangeLogScreen({ appVersion, onBackToLogin }) {
+function ChangeLogScreen({ appVersion, onBackToLogin, backLabel = 'Back to login' }) {
   const latestEntry = changeLogEntries[0]
 
   return (
@@ -218,7 +231,7 @@ function ChangeLogScreen({ appVersion, onBackToLogin }) {
               <p>Versioned notes for user-facing updates.</p>
             </div>
             <button className="secondary-button changelog-back" type="button" onClick={onBackToLogin}>
-              Back to login
+              {backLabel}
             </button>
           </div>
 

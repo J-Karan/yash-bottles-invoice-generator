@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
+
+const appVersion = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+).version
 
 const buyers = [
   {
@@ -158,10 +164,10 @@ test('login screen renders and invalid login reports an error', async ({ page },
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Version 0.3.5' })).toBeVisible()
-  await page.getByRole('button', { name: 'Version 0.3.5' }).click()
+  await expect(page.getByRole('button', { name: `Version ${appVersion}` })).toBeVisible()
+  await page.getByRole('button', { name: `Version ${appVersion}` }).click()
   await expect(page.getByRole('heading', { name: 'Update history' })).toBeVisible()
-  await expect(page.getByText('Version 0.3.5')).toBeVisible()
+  await expect(page.getByText(`Version ${appVersion}`)).toBeVisible()
   await expect(page.getByText('Version 0.3.4')).toBeVisible()
   await expect(page.getByText('Version 0.3.3')).toBeVisible()
   await expect(page.getByText('Version 0.3.1')).toBeVisible()
@@ -197,7 +203,7 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.locator('.workspace-bar')).toBeVisible()
   await expect(page.getByText('Yash Bottles')).toBeVisible()
   await expect(page.getByText('Invoice Generator')).toBeVisible()
-  await expect(page.locator('.workspace-version')).toHaveText('Version 0.3.5')
+  await expect(page.locator('.workspace-version')).toHaveText(`Version ${appVersion}`)
   const workspaceBrandFontSize = await page.locator('.workspace-brand').evaluate((element) => Number.parseFloat(window.getComputedStyle(element).fontSize))
   expect(workspaceBrandFontSize).toBeGreaterThanOrEqual(21)
   await expect(page.locator('.workspace-bar-metrics')).toHaveCount(0)
@@ -218,6 +224,10 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.getByLabel('Vehicle number')).toHaveJSProperty('validity.valid', false)
 
   await page.getByLabel('Vehicle number').fill('bad')
+  await page.getByRole('button', { name: 'Generate invoice' }).click()
+  await expect(page.getByLabel('Vehicle number')).toHaveJSProperty('validity.valid', false)
+
+  await page.getByLabel('Vehicle number').fill('MH12AB1234')
   await page.getByRole('button', { name: 'Generate invoice' }).click()
   await expect(page.getByText('Generated invoice')).toBeVisible()
   await expect(page.getByText('Invoice 001/2026-27 generated')).toBeVisible()

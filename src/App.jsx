@@ -14,6 +14,7 @@ import { useAdminAuth } from './hooks/useAdminAuth.js'
 import { useEwayReadiness } from './hooks/useEwayReadiness.jsx'
 import {
   buildShipToOptions,
+  computeDeletableInvoiceKeys,
   createInitialInvoiceForm,
   createLineItem,
   defaultPaymentSummary,
@@ -153,6 +154,22 @@ function App() {
     [form.lineItems, items],
   )
 
+  const deletableInvoiceKeys = useMemo(
+    () => computeDeletableInvoiceKeys(invoiceHistory),
+    [invoiceHistory],
+  )
+
+  useEffect(() => {
+    if (!error) {
+      return
+    }
+
+    const banner = document.querySelector('.form-panel .error-banner')
+    if (banner && typeof banner.scrollIntoView === 'function') {
+      banner.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [error])
+
   const filteredBuyers = useMemo(() => {
     const query = buyerSearch.trim().toLowerCase()
     if (!query) {
@@ -271,6 +288,7 @@ function App() {
       // The local session is authoritative for UI state.
     } finally {
       clearAppSession()
+      setLoginError('')
     }
   }
 
@@ -290,13 +308,24 @@ function App() {
   }
 
   async function appFetch(url, options = {}) {
-    return fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
         'X-Invoice-Session': appToken,
       },
     })
+
+    if (response.status === 401) {
+      const data = await response.clone().json().catch(() => ({}))
+      const sessionErrors = ['Login required.', 'Session expired. Log in again.']
+      if (sessionErrors.includes(data?.error)) {
+        clearAppSession()
+        setLoginError('Session expired. Log in again.')
+      }
+    }
+
+    return response
   }
 
   async function readResponseJson(response, fallbackMessage) {
@@ -575,6 +604,10 @@ function App() {
       await refreshHistory()
       await refreshEwayReadiness()
       setPendingDelete(null)
+      setSuccessToast({
+        message: `Invoice ${invoice.invoiceNumber} deleted`,
+        visible: true,
+      })
     } catch (deleteError) {
       setPendingDelete(null)
       setHistoryError(deleteError.message)
@@ -850,10 +883,17 @@ function App() {
     )
   }
 
+  if (showChangeLog) {
+    return (
+      <ChangeLogScreen
+        appVersion={appVersion}
+        backLabel={appToken ? 'Back to workspace' : 'Back to login'}
+        onBackToLogin={() => setShowChangeLog(false)}
+      />
+    )
+  }
+
   if (!appToken) {
-    if (showChangeLog) {
-      return <ChangeLogScreen appVersion={appVersion} onBackToLogin={() => setShowChangeLog(false)} />
-    }
 
     return (
       <LoginScreen
@@ -884,10 +924,16 @@ function App() {
     <main className="app-shell">
       <section className="workspace-bar">
         <div className="workspace-brand-block">
-          <p className="workspace-brand">Yash Bottles</p>
+          <h1 className="workspace-brand">Yash Bottles</h1>
           <span>Invoice Generator</span>
         </div>
-        <span className="workspace-version">Version {appVersion}</span>
+        <button
+          className="workspace-version workspace-version-button"
+          type="button"
+          onClick={() => setShowChangeLog(true)}
+        >
+          Version {appVersion}
+        </button>
       </section>
 
       <WorkspaceSwitcher
@@ -953,6 +999,9 @@ function App() {
                   value={form.vehicleNumber}
                   onChange={updateInvoiceField}
                   placeholder="MH12AB1234"
+                  maxLength={20}
+                  pattern="[A-Za-z0-9\-]{4,20}"
+                  title="4 to 20 characters: letters, numbers, and hyphens only"
                   required
                 />
               </label>
@@ -1029,6 +1078,7 @@ function App() {
                           <input
                             type="number"
                             min="1"
+                            max="100000"
                             value={line.bags}
                             onChange={(event) => updateLineItem(line.id, 'bags', event.target.value)}
                             onWheel={(event) => event.target.blur()}
@@ -1085,7 +1135,7 @@ function App() {
               </article>
             </div>
 
-            {error ? <p className="error-banner">{error}</p> : null}
+            {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
             <button className="primary-button" type="submit" disabled={submitting}>
               {submitting ? 'Generating files...' : editingInvoice ? 'Regenerate invoice' : 'Generate invoice'}
@@ -1127,7 +1177,11 @@ function App() {
                     <div className="preview-line-head">
                       <div>
                         <p className="mini-label">Item {index + 1}</p>
-                        <h3>{line.selectedItem ? `${line.selectedItem.Description} (${line.bags || 0} bags)` : '--'}</h3>
+                        <h3>
+                          {line.selectedItem
+                            ? `${line.selectedItem.Description} (${line.bags || 0} ${Number(line.bags) === 1 ? 'bag' : 'bags'})`
+                            : '--'}
+                        </h3>
                       </div>
                       <div className="preview-chip">HSN {line.selectedItem?.HSN_Code || '7010'}</div>
                     </div>
@@ -1245,6 +1299,7 @@ function App() {
 
       {activeView === 'history' ? (
         <InvoiceHistory
+          deletableInvoiceKeys={deletableInvoiceKeys}
           ewayError={ewayError}
           ewayLoading={ewayLoading}
           filteredInvoiceHistory={filteredInvoiceHistory}

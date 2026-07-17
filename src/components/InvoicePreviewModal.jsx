@@ -123,7 +123,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
             </thead>
             <tbody>
               {computedLines.map((line, index) => (
-                <tr key={line.itemCode}>
+                <tr key={`${index}-${line.itemCode}`}>
                   <td>{index + 1}</td>
                   <td>
                     <strong>{line.selectedItem?.Description || 'Unknown Item'}</strong>

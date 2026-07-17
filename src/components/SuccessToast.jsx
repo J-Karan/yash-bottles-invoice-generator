@@ -1,14 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 function SuccessToast({ message, visible, onDismiss }) {
+  const onDismissRef = useRef(onDismiss)
+  onDismissRef.current = onDismiss
+
   useEffect(() => {
     if (!visible) {
       return undefined
     }
 
-    const timeoutId = window.setTimeout(onDismiss, 4000)
+    const timeoutId = window.setTimeout(() => onDismissRef.current(), 4000)
     return () => window.clearTimeout(timeoutId)
-  }, [onDismiss, visible])
+  }, [message, visible])
 
   if (!visible || !message) {
     return null
@@ -18,7 +21,7 @@ function SuccessToast({ message, visible, onDismiss }) {
     <div className="success-toast" role="status" aria-live="polite">
       <span>{message}</span>
       <button type="button" onClick={onDismiss} aria-label="Dismiss notification">
-        x
+        &times;
       </button>
     </div>
   )

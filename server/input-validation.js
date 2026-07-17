@@ -5,7 +5,7 @@ const codePattern = /^[A-Z0-9_-]+$/
 const gstinPattern = /^[0-9A-Z]{15}$/
 const hsnPattern = /^\d{4,8}$/
 const invoiceKeyPattern = /^\d{1,6}-\d{4}-\d{2}$/
-const vehiclePattern = /^[A-Z0-9-]{4,20}$/
+const vehicleCharsetPattern = /^[A-Z0-9-]+$/
 
 function validationError(message) {
   const error = new Error(message)
@@ -129,8 +129,11 @@ function normalizeVehicleNumber(value) {
     uppercase: true,
   }).replace(/\s+/g, '')
 
-  if (!vehiclePattern.test(normalized)) {
+  if (!vehicleCharsetPattern.test(normalized)) {
     throw validationError('Vehicle number can contain only letters, numbers, and hyphens.')
+  }
+  if (normalized.length < 4 || normalized.length > 20) {
+    throw validationError('Vehicle number must be 4 to 20 characters long.')
   }
 
   return normalized

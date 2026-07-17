@@ -13,12 +13,13 @@ function WorkspaceSwitcher({
   onAppLogout,
 }) {
   return (
-    <section className="workspace-switcher">
+    <nav className="workspace-switcher" aria-label="Workspace sections">
       {views.map((view) => (
         <button
           key={view.id}
           className={`view-chip ${activeView === view.id ? 'view-chip-active' : ''}`}
           type="button"
+          aria-current={activeView === view.id ? 'page' : undefined}
           onClick={() => setActiveView(view.id)}
         >
           {view.label}
@@ -32,7 +33,7 @@ function WorkspaceSwitcher({
       <button className="view-chip" type="button" onClick={onAppLogout}>
         Log Out
       </button>
-    </section>
+    </nav>
   )
 }
 

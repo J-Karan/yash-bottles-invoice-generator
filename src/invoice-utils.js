@@ -239,6 +239,10 @@ function getStoredAppToken() {
   return localStorage.getItem('invoiceAppToken') || ''
 }
 
+function roundCurrency(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 function calculateInvoiceDetails(lineItems, items) {
   const computedLines = (lineItems || []).map((line) => {
     const selectedItem = items.find((item) => item.Item_Code === line.itemCode)
@@ -247,10 +251,10 @@ function calculateInvoiceDetails(lineItems, items) {
     const quantity = bags * bottlesPerBag
     const grossRate = Number(selectedItem?.Gross_Rate || 0)
     const nonTaxableRate = Number(selectedItem?.Non_Taxable_Rate || 0)
-    const taxableRate = grossRate - nonTaxableRate
-    const amount = quantity * grossRate
-    const nonTaxableValue = quantity * nonTaxableRate
-    const taxableValue = quantity * taxableRate
+    const taxableRate = roundCurrency(grossRate - nonTaxableRate)
+    const amount = roundCurrency(quantity * grossRate)
+    const nonTaxableValue = roundCurrency(quantity * nonTaxableRate)
+    const taxableValue = roundCurrency(quantity * taxableRate)
 
     return {
       ...line,
@@ -268,11 +272,11 @@ function calculateInvoiceDetails(lineItems, items) {
   })
 
   const quantity = computedLines.reduce((sum, line) => sum + line.quantity, 0)
-  const taxableValue = computedLines.reduce((sum, line) => sum + line.taxableValue, 0)
-  const nonTaxableValue = computedLines.reduce((sum, line) => sum + line.nonTaxableValue, 0)
-  const cgst = taxableValue * 0.09
-  const sgst = taxableValue * 0.09
-  const total = nonTaxableValue + taxableValue + cgst + sgst
+  const taxableValue = roundCurrency(computedLines.reduce((sum, line) => sum + line.taxableValue, 0))
+  const nonTaxableValue = roundCurrency(computedLines.reduce((sum, line) => sum + line.nonTaxableValue, 0))
+  const cgst = roundCurrency(taxableValue * 0.09)
+  const sgst = roundCurrency(taxableValue * 0.09)
+  const total = roundCurrency(nonTaxableValue + roundCurrency(taxableValue + cgst + sgst))
 
   return {
     computedLines,
@@ -287,8 +291,29 @@ function calculateInvoiceDetails(lineItems, items) {
   }
 }
 
+function computeDeletableInvoiceKeys(invoices) {
+  const latestByFinancialYear = new Map()
+
+  for (const invoice of invoices || []) {
+    const match = String(invoice.invoiceNumber || '').match(/^(\d+)\/(\d{4}-\d{2})$/)
+    if (!match) {
+      continue
+    }
+
+    const serial = Number(match[1])
+    const financialYear = match[2]
+    const current = latestByFinancialYear.get(financialYear)
+    if (!current || serial > current.serial) {
+      latestByFinancialYear.set(financialYear, { serial, invoiceKey: invoice.invoiceKey })
+    }
+  }
+
+  return new Set([...latestByFinancialYear.values()].map((entry) => entry.invoiceKey))
+}
+
 export {
   buildShipToOptions,
+  computeDeletableInvoiceKeys,
   createInitialInvoiceForm,
   createLineItem,
   defaultPaymentSummary,

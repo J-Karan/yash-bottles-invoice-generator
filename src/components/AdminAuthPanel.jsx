@@ -13,7 +13,7 @@ function AdminAuthPanel({
         <div className="panel-header admin-auth-top">
           <p className="admin-auth-eyebrow">Restricted Workspace</p>
           <h2>Admin Login Required</h2>
-          <p>Buyer and item management are protected. Set <code>ADMIN_PASSWORD</code> on the server for live use.</p>
+          <p>Buyer and item management are protected. Enter the admin password to continue.</p>
         </div>
 
         <div className="admin-auth-note">
@@ -30,6 +30,7 @@ function AdminAuthPanel({
               onChange={(event) => setAdminPasswordInput(event.target.value)}
               placeholder="Enter admin password"
               autoComplete="current-password"
+              aria-label="Admin password"
               required
             />
             <button

@@ -1,6 +1,7 @@
 import { formatDisplayDate, formatDisplayDateTime, formatMoney } from '../invoice-utils.js'
 
 export function InvoiceHistory({
+  deletableInvoiceKeys,
   ewayError,
   ewayLoading,
   filteredInvoiceHistory,
@@ -93,10 +94,10 @@ export function InvoiceHistory({
         </div>
       </label>
 
-      {historyError ? <p className="error-banner">{historyError}</p> : null}
-      {paymentError ? <p className="error-banner">{paymentError}</p> : null}
-      {paymentStatus ? <p className="success-banner">{paymentStatus}</p> : null}
-      {ewayError ? <p className="error-banner">{ewayError}</p> : null}
+      {historyError ? <p className="error-banner" role="alert">{historyError}</p> : null}
+      {paymentError ? <p className="error-banner" role="alert">{paymentError}</p> : null}
+      {paymentStatus ? <p className="success-banner" role="status">{paymentStatus}</p> : null}
+      {ewayError ? <p className="error-banner" role="alert">{ewayError}</p> : null}
       {historyLoading ? <p className="hint-text">Loading invoice history...</p> : null}
       {!historyLoading && !filteredInvoiceHistory.length ? (
         <p className="hint-text">No invoices found for the current filter.</p>
@@ -165,9 +166,16 @@ export function InvoiceHistory({
                           className="text-button history-action-delete"
                           type="button"
                           aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                          title="Only the latest invoice can be deleted"
+                          title={
+                            deletableInvoiceKeys?.has(invoice.invoiceKey)
+                              ? `Delete invoice ${invoice.invoiceNumber}`
+                              : 'Only the latest invoice of each financial year can be deleted'
+                          }
                           onClick={() => handleDeleteInvoice(invoice)}
-                          disabled={historyActionBusyKey === invoice.invoiceKey}
+                          disabled={
+                            historyActionBusyKey === invoice.invoiceKey ||
+                            !deletableInvoiceKeys?.has(invoice.invoiceKey)
+                          }
                         >
                           {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
                         </button>
@@ -266,9 +274,16 @@ export function InvoiceHistory({
                     className="text-button history-action-delete"
                     type="button"
                     aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                    title="Only the latest invoice can be deleted"
+                    title={
+                      deletableInvoiceKeys?.has(invoice.invoiceKey)
+                        ? `Delete invoice ${invoice.invoiceNumber}`
+                        : 'Only the latest invoice of each financial year can be deleted'
+                    }
                     onClick={() => handleDeleteInvoice(invoice)}
-                    disabled={historyActionBusyKey === invoice.invoiceKey}
+                    disabled={
+                      historyActionBusyKey === invoice.invoiceKey ||
+                      !deletableInvoiceKeys?.has(invoice.invoiceKey)
+                    }
                   >
                     {historyActionBusyKey === invoice.invoiceKey ? 'Deleting...' : 'Delete'}
                   </button>

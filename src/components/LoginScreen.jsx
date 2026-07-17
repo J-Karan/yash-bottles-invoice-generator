@@ -61,6 +61,7 @@ function LoginScreen({
                 value={loginPassword}
                 onChange={(event) => setLoginPassword(event.target.value)}
                 autoComplete="current-password"
+                aria-label="Password"
                 required
               />
               <button
@@ -73,7 +74,7 @@ function LoginScreen({
             </div>
           </label>
 
-          {loginError ? <p className="error-banner">{loginError}</p> : null}
+          {loginError ? <p className="error-banner" role="alert">{loginError}</p> : null}
 
           <button className="primary-button login-submit" type="submit" disabled={loginBusy}>
             {loginBusy ? 'Signing in...' : 'Enter Workspace'}

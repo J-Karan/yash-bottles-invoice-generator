@@ -471,6 +471,18 @@
   white-space: nowrap;
 }
 
+.workspace-version-button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.workspace-version-button:hover,
+.workspace-version-button:focus-visible {
+  border-color: rgba(143, 52, 21, 0.4);
+  color: var(--accent);
+}
+
 .workspace-switcher {
   display: flex;
   flex-wrap: wrap;
@@ -2062,6 +2074,13 @@
 
   .history-mobile-meta {
     grid-template-columns: 1fr;
+  }
+
+  .history-mobile-card .text-button,
+  .history-mobile-card .history-file-missing {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 
