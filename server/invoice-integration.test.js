@@ -148,4 +148,36 @@ describe('E-way readiness integration', () => {
     assert.ok(bill.transDistance > 0)
     assert.ok(bill.itemList.length > 0)
   })
+
+  it('resolves 75km automatically for Rahul Bottles with Lonand ship-to option', async () => {
+    const buyers = await readBuyers()
+    const rahul = buyers.find((b) => b.Buyer_Code === 'B005')
+    assert.ok(rahul, 'expected buyer B005')
+    const lonandOption = rahul.Ship_To_Options.find((o) => o.id === 'carlsberg-lonand')
+    assert.ok(lonandOption, 'expected carlsberg-lonand ship-to option on B005')
+
+    const item = (await readItems())[0]
+    let generated
+    try {
+      generated = await generateAndSaveInvoice({
+        buyerCode: 'B005',
+        shipToOptionId: 'carlsberg-lonand',
+        vehicleNumber: 'MH12AB1234',
+        invoiceDate: '2026-05-27',
+        lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+      })
+
+      const readiness = readEwayReadiness()
+      const entry = readiness.invoices.find((i) => i.invoiceKey === generated.invoice.invoiceKey)
+      assert.ok(entry, 'expected invoice entry in readiness')
+      assert.equal(entry.distanceKm, 75)
+      assert.equal(entry.distanceSource, 'ship-to-default')
+    } finally {
+      if (generated?.invoice?.invoiceKey) {
+        await deleteInvoiceHistory(generated.invoice.invoiceKey)
+      }
+    }
+  })
 })
+
+
