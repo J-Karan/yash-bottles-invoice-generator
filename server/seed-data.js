@@ -6,7 +6,15 @@ const defaultBuyerShipToOptions = [
     shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
     shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
   },
+  {
+    buyerCode: 'B005',
+    optionId: 'carlsberg-lonand',
+    label: 'Carlsberg India Pvt. Ltd. (PVL CO Brewery) - MIDC Lonand',
+    shipToName: 'CARLSBERG INDIA PVT. LTD. (PVL CO BREWERY)',
+    shipToAddress: 'Plot No. C2, MIDC Lonand, Tal. Khandala, Dist. Satara, Maharashtra, 415521',
+  },
 ]
+
 
 const defaultEwayInvoiceDistances = [
   ['086-2025-26', 241],

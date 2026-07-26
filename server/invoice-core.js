@@ -362,6 +362,26 @@ async function seedDatabaseFromCsv() {
 }
 
 function seedOperationalDefaults() {
+  const insertShipTo = db.prepare(`
+    INSERT OR IGNORE INTO buyer_ship_to_options (
+      buyer_code,
+      option_id,
+      label,
+      ship_to_name,
+      ship_to_address
+    ) VALUES (?, ?, ?, ?, ?)
+  `)
+
+  defaultBuyerShipToOptions.forEach((option) => {
+    insertShipTo.run(
+      option.buyerCode,
+      option.optionId,
+      option.label,
+      option.shipToName,
+      option.shipToAddress,
+    )
+  })
+
   const seedKey = 'operational_defaults_seed_v1'
   const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(seedKey)
   if (existing) {
@@ -369,26 +389,6 @@ function seedOperationalDefaults() {
   }
 
   const seedDefaults = withTransaction(() => {
-    const insertShipTo = db.prepare(`
-      INSERT OR IGNORE INTO buyer_ship_to_options (
-        buyer_code,
-        option_id,
-        label,
-        ship_to_name,
-        ship_to_address
-      ) VALUES (?, ?, ?, ?, ?)
-    `)
-
-    defaultBuyerShipToOptions.forEach((option) => {
-      insertShipTo.run(
-        option.buyerCode,
-        option.optionId,
-        option.label,
-        option.shipToName,
-        option.shipToAddress,
-      )
-    })
-
     const insertInvoiceDistance = db.prepare(`
       INSERT OR IGNORE INTO eway_invoice_distances (invoice_key, distance_km)
       VALUES (?, ?)
