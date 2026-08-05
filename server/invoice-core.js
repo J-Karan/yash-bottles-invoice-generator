@@ -382,12 +382,6 @@ function seedOperationalDefaults() {
     )
   })
 
-  const seedKey = 'operational_defaults_seed_v1'
-  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(seedKey)
-  if (existing) {
-    return
-  }
-
   const seedDefaults = withTransaction(() => {
     const insertInvoiceDistance = db.prepare(`
       INSERT OR IGNORE INTO eway_invoice_distances (invoice_key, distance_km)
@@ -412,14 +406,19 @@ function seedOperationalDefaults() {
     defaultEwayAmbiguousBuyerCodes.forEach((buyerCode) => {
       insertAmbiguousBuyer.run(buyerCode)
     })
-
-    db.prepare(`
-      INSERT INTO app_settings (setting_key, setting_value, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-    `).run(seedKey, 'seeded')
   })
-
   seedDefaults()
+
+  const seedKey = 'operational_defaults_seed_v1'
+  const existing = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(seedKey)
+  if (existing) {
+    return
+  }
+
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).run(seedKey, 'seeded')
 }
 
 async function normalizeInvoiceNumberingByFinancialYear() {

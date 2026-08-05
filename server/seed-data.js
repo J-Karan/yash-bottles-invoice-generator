@@ -48,6 +48,7 @@ const defaultEwayBuyerDistances = [
   ['B003', 241],
   ['B004', 233],
   ['B005', 241],
+  ['B008', 250],
 ]
 
 const defaultEwayAmbiguousBuyerCodes = []

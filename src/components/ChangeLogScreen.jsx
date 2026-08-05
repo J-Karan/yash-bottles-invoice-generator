@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.3.10',
+    title: 'Default E-way Bill Distance for B008',
+    changes: [
+      'Added default E-way Bill transport distance of 250 km for buyer B008 (Campet Bottles Private Limited).',
+      'Updated startup operational defaults seeding so newly configured E-way distances apply automatically to existing databases.',
+    ],
+  },
+  {
     version: '0.3.9',
     title: 'History Action Layout Polish',
     changes: [

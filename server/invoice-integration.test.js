@@ -178,6 +178,34 @@ describe('E-way readiness integration', () => {
       }
     }
   })
+
+  it('resolves 250km automatically as default buyer distance for Campet Bottles (B008)', async () => {
+    const buyers = await readBuyers()
+    const campet = buyers.find((b) => b.Buyer_Code === 'B008')
+    assert.ok(campet, 'expected buyer B008')
+
+    const item = (await readItems())[0]
+    let generated
+    try {
+      generated = await generateAndSaveInvoice({
+        buyerCode: 'B008',
+        shipToOptionId: campet.Default_Ship_To_Option_Id,
+        vehicleNumber: 'MH14MH8226',
+        invoiceDate: '2026-08-04',
+        lineItems: [{ itemCode: item.Item_Code, bags: '1' }],
+      })
+
+      const readiness = readEwayReadiness()
+      const entry = readiness.invoices.find((i) => i.invoiceKey === generated.invoice.invoiceKey)
+      assert.ok(entry, 'expected invoice entry in readiness')
+      assert.equal(entry.distanceKm, 250)
+      assert.equal(entry.distanceSource, 'buyer-default')
+    } finally {
+      if (generated?.invoice?.invoiceKey) {
+        await deleteInvoiceHistory(generated.invoice.invoiceKey)
+      }
+    }
+  })
 })
 
 
