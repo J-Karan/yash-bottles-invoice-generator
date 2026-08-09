@@ -118,7 +118,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                 <th className="preview-sheet-number">Taxable Value</th>
                 <th className="preview-sheet-number">CGST 9%</th>
                 <th className="preview-sheet-number">SGST 9%</th>
-                <th className="preview-sheet-number">Line Total</th>
+                <th className="preview-sheet-number">Gross Amount</th>
               </tr>
             </thead>
             <tbody>
