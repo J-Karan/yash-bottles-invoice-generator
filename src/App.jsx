@@ -1260,15 +1260,8 @@ function App() {
                   >
                     Download PDF
                   </button>
-                  {generatedEwayState.canDownload ? (
-                    <button
-                      type="button"
-                      onClick={() => downloadEwayJson(generatedEwayState.readiness, setError)}
-                    >
-                      Download E-way JSON
-                    </button>
-                  ) : generatedEwayState.reason === 'Missing distance' && generatedEwayState.readiness ? (
-                    <label className="eway-inline-distance">
+                  {generatedEwayState.needsDistanceInput ? (
+                    <div className="eway-inline-distance">
                       <span>Distance km</span>
                       <input
                         inputMode="numeric"
@@ -1279,7 +1272,21 @@ function App() {
                           setEwayDistance(generatedEwayState.readiness.invoiceKey, event.target.value)
                         }
                       />
-                    </label>
+                      <button
+                        type="button"
+                        onClick={() => downloadEwayJson(generatedEwayState.readiness, setError)}
+                        disabled={!Number(getEwayDistance(generatedEwayState.readiness))}
+                      >
+                        Download E-way JSON
+                      </button>
+                    </div>
+                  ) : generatedEwayState.canDownload ? (
+                    <button
+                      type="button"
+                      onClick={() => downloadEwayJson(generatedEwayState.readiness, setError)}
+                    >
+                      Download E-way JSON
+                    </button>
                   ) : (
                     <span className="download-disabled">E-way JSON: {generatedEwayState.reason}</span>
                   )}

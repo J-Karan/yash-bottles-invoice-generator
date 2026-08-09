@@ -78,49 +78,34 @@ function useEwayReadiness({
 
   function getEwayDownloadState(invoice) {
     if (!invoice?.pdfAvailable) {
-      return { canDownload: false, reason: 'PDF missing', readiness: null }
+      return { canDownload: false, reason: 'PDF missing', readiness: null, needsDistanceInput: false }
     }
 
     const readiness = ewayReadinessByKey.get(invoice.invoiceKey)
     if (!readiness) {
-      return { canDownload: false, reason: ewayLoading ? 'Checking readiness' : 'Readiness unavailable', readiness: null }
+      return { canDownload: false, reason: ewayLoading ? 'Checking readiness' : 'Readiness unavailable', readiness: null, needsDistanceInput: false }
     }
 
     const distance = Number(getEwayDistance(readiness))
     const unresolved = (readiness.missingFields || []).filter((field) => field !== 'distance_km')
+    const needsDistanceInput = (readiness.missingFields || []).includes('distance_km') && unresolved.length === 0
 
     if (unresolved.length) {
-      return { canDownload: false, reason: `Missing ${unresolved.join(', ')}`, readiness }
+      return { canDownload: false, reason: `Missing ${unresolved.join(', ')}`, readiness, needsDistanceInput: false }
     }
     if (!Number.isFinite(distance) || distance <= 0) {
-      return { canDownload: false, reason: 'Missing distance', readiness }
+      return { canDownload: false, reason: 'Missing distance', readiness, needsDistanceInput }
     }
 
-    return { canDownload: true, reason: '', readiness }
+    return { canDownload: true, reason: '', readiness, needsDistanceInput }
   }
 
   function renderEwayJsonAction(invoice) {
     const state = getEwayDownloadState(invoice)
-
-    if (state.canDownload) {
-      return (
-        <button
-          className="text-button history-action-eway"
-          type="button"
-          onClick={() => downloadEwayJson(state.readiness, setHistoryError)}
-        >
-          E-way JSON
-        </button>
-      )
-    }
-
     const readiness = state.readiness
-    const missingFields = readiness?.missingFields || []
-    const unresolvedFields = missingFields.filter((field) => field !== 'distance_km')
-    const distanceValue = readiness ? getEwayDistance(readiness) : ''
-    const canEnterDistance = readiness && missingFields.includes('distance_km') && unresolvedFields.length === 0
 
-    if (canEnterDistance) {
+    if (state.needsDistanceInput) {
+      const distanceValue = readiness ? getEwayDistance(readiness) : ''
       return (
         <div className="eway-distance-action history-action-eway">
           <input
@@ -141,6 +126,18 @@ function useEwayReadiness({
             E-way JSON
           </button>
         </div>
+      )
+    }
+
+    if (state.canDownload) {
+      return (
+        <button
+          className="text-button history-action-eway"
+          type="button"
+          onClick={() => downloadEwayJson(state.readiness, setHistoryError)}
+        >
+          E-way JSON
+        </button>
       )
     }
 
