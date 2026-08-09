@@ -2346,3 +2346,9 @@
 .preview-sheet-grand-total-value {
   font-weight: 850;
 }
+
+.preview-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
