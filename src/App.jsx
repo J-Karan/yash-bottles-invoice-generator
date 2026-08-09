@@ -1271,6 +1271,13 @@ function App() {
                         onChange={(event) =>
                           setEwayDistance(generatedEwayState.readiness.invoiceKey, event.target.value)
                         }
+                        onKeyDown={(event) => {
+                          const val = getEwayDistance(generatedEwayState.readiness)
+                          if (event.key === 'Enter' && Number(val)) {
+                            event.preventDefault()
+                            downloadEwayJson(generatedEwayState.readiness, setError)
+                          }
+                        }}
                       />
                       <button
                         type="button"

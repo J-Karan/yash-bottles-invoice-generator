@@ -116,6 +116,12 @@ function useEwayReadiness({
             placeholder="KM"
             value={distanceValue}
             onChange={(event) => setEwayDistance(readiness.invoiceKey, event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && Number(distanceValue)) {
+                event.preventDefault()
+                downloadEwayJson(readiness, setHistoryError)
+              }
+            }}
           />
           <button
             className="text-button"
