@@ -44,7 +44,7 @@ Core behavior:
 Package:
 
 - Name: `invoice-web-app`
-- Version: `0.3.5`
+- Version: `0.3.11`
 - Module type: ESM
 - Required Node engine: `>=22.5.0`
 

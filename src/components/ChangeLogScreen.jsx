@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.3.11',
+    title: 'E-Way Distance Input & Enter Key Polish',
+    changes: [
+      'Fixed E-way distance input unmounting mid-typing: the distance input box now stays mounted when typing multi-digit distances.',
+      'Added Enter key support inside the distance input box so pressing Enter directly triggers E-way JSON generation and download.',
+      'Patched npm security advisories across local and production dependencies.',
+    ],
+  },
+  {
     version: '0.3.10',
     title: 'Default E-way Bill Distance for B008',
     changes: [
