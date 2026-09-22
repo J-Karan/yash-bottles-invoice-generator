@@ -107,48 +107,50 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
             </div>
           </section>
 
-          <table className="preview-sheet-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Item Description</th>
-                <th className="preview-sheet-number">Bags</th>
-                <th className="preview-sheet-number">Qty (Pcs)</th>
-                <th className="preview-sheet-number">Gross Rate</th>
-                <th className="preview-sheet-number">Taxable Value</th>
-                <th className="preview-sheet-number">CGST 9%</th>
-                <th className="preview-sheet-number">SGST 9%</th>
-                <th className="preview-sheet-number">Gross Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {computedLines.map((line, index) => (
-                <tr key={`${index}-${line.itemCode}`}>
-                  <td>{index + 1}</td>
-                  <td>
-                    <strong>{line.selectedItem?.Description || 'Unknown Item'}</strong>
-                    {line.bags > 0 && line.bottlesPerBag > 0 && (
-                      <div className="preview-sheet-bag-note">
-                        Bags {line.bags} x {line.bottlesPerBag}
-                      </div>
-                    )}
-                    <div className="preview-sheet-item-meta">
-                      HSN: {line.selectedItem?.HSN_Code || '7010'} | {line.bottlesPerBag || 0} Pcs/Bag
-                    </div>
-                  </td>
-                  <td className="preview-sheet-number">{line.bags}</td>
-                  <td className="preview-sheet-number">{line.quantity}</td>
-                  <td className="preview-sheet-number">{formatMoney(line.grossRate)}</td>
-                  <td className="preview-sheet-number">{formatMoney(line.taxableValue)}</td>
-                  <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
-                  <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
-                  <td className="preview-sheet-number preview-sheet-line-total">
-                    {formatMoney(line.amount)}
-                  </td>
+          <div className="preview-table-container">
+            <table className="preview-sheet-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Item Description</th>
+                  <th className="preview-sheet-number">Bags</th>
+                  <th className="preview-sheet-number">Qty (Pcs)</th>
+                  <th className="preview-sheet-number">Gross Rate</th>
+                  <th className="preview-sheet-number">Taxable Value</th>
+                  <th className="preview-sheet-number">CGST 9%</th>
+                  <th className="preview-sheet-number">SGST 9%</th>
+                  <th className="preview-sheet-number">Gross Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {computedLines.map((line, index) => (
+                  <tr key={`${index}-${line.itemCode}`}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <strong>{line.selectedItem?.Description || 'Unknown Item'}</strong>
+                      {line.bags > 0 && line.bottlesPerBag > 0 && (
+                        <div className="preview-sheet-bag-note">
+                          Bags {line.bags} x {line.bottlesPerBag}
+                        </div>
+                      )}
+                      <div className="preview-sheet-item-meta">
+                        HSN: {line.selectedItem?.HSN_Code || '7010'} | {line.bottlesPerBag || 0} Pcs/Bag
+                      </div>
+                    </td>
+                    <td className="preview-sheet-number">{line.bags}</td>
+                    <td className="preview-sheet-number">{line.quantity}</td>
+                    <td className="preview-sheet-number">{formatMoney(line.grossRate)}</td>
+                    <td className="preview-sheet-number">{formatMoney(line.taxableValue)}</td>
+                    <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
+                    <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
+                    <td className="preview-sheet-number preview-sheet-line-total">
+                      {formatMoney(line.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <div className="preview-sheet-totals">
             <div className="preview-sheet-totals-box">
