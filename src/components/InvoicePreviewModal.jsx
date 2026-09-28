@@ -7,14 +7,18 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
   useModalTrap(modalRef, onClose)
 
   const selectedBuyer = useMemo(
-    () => buyers.find((buyer) => buyer.Buyer_Code === invoice.buyerCode),
-    [buyers, invoice.buyerCode],
+    () => invoice.buyerSnapshot || buyers.find((buyer) => buyer.Buyer_Code === invoice.buyerCode),
+    [buyers, invoice.buyerCode, invoice.buyerSnapshot],
   )
 
   const shipToOptions = useMemo(() => buildShipToOptions(selectedBuyer), [selectedBuyer])
   const selectedShipToOption = useMemo(
-    () => shipToOptions.find((option) => option.id === invoice.shipToOptionId) || shipToOptions[0] || null,
-    [invoice.shipToOptionId, shipToOptions],
+    () => invoice.buyerSnapshot ? {
+      id: invoice.buyerSnapshot.Ship_To_Address && invoice.buyerSnapshot.Ship_To_Name.toUpperCase() !== 'SAME AS TO' ? 'saved_ship_to' : 'bill_to',
+      shipToName: invoice.buyerSnapshot.Ship_To_Name,
+      shipToAddress: invoice.buyerSnapshot.Ship_To_Address,
+    } : shipToOptions.find((option) => option.id === invoice.shipToOptionId) || shipToOptions[0] || null,
+    [invoice.shipToOptionId, invoice.buyerSnapshot, shipToOptions],
   )
 
   const { computedLines, computedTotals } = useMemo(() => {

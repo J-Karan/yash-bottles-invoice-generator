@@ -1,5 +1,17 @@
 const changeLogEntries = [
   {
+    version: '0.3.12',
+    title: 'Invoice Save Safety & Historical Accuracy',
+    changes: [
+      'Simultaneous invoice saves now receive separate numbers without overwriting another invoice.',
+      'Failed Excel/PDF publication restores the previous invoice and files, with recovery after an interrupted save.',
+      'Moving an invoice to another month removes its obsolete Excel and PDF files after a successful save.',
+      'Historical previews and E-way exports now retain saved buyer and delivery details when masters change.',
+      'Legacy billing addresses are frozen from available master data during this update; previously changed addresses cannot be reconstructed.',
+      'Deployment tests now use synthetic data in a temporary database, keeping real invoices untouched.',
+    ],
+  },
+  {
     version: '0.3.11',
     title: 'E-Way Distance Input & Enter Key Polish',
     changes: [

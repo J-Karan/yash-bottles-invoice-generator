@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 
 if ($Push) {
   git push
+  if ($LASTEXITCODE -ne 0) { throw 'Git push failed.' }
 }
 
 $remoteDeploy = @'
@@ -23,12 +24,16 @@ db_file="$repo/data/invoice-app.sqlite"
 test -f "$buyers_csv"
 test -f "$items_csv"
 mkdir -p "$backup"
+chmod 700 "$backup"
 cp -p "$buyers_csv" "$backup/"
 cp -p "$items_csv" "$backup/"
 
 if [ -f "$db_file" ]; then
   sqlite3 "$db_file" ".backup '$backup/invoice-app.sqlite'"
   echo "SQLite database safely backed up to: $backup/invoice-app.sqlite"
+fi
+if [ -d "$repo/generated" ]; then
+  tar -czf "$backup/generated.tar.gz" -C "$repo" generated
 fi
 
 cd "$repo"
@@ -49,15 +54,14 @@ test -f "$items_csv"
 
 npm ci
 npm run build
-set -a
-. "$repo/.env"
-set +a
-node --test
+npm test
 sudo systemctl restart "$service_name"
 sudo systemctl is-active --quiet "$service_name"
+curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:5000/api/health
 
 echo "Deployed $(git rev-parse --short HEAD)"
 echo "CSV backup: $backup"
 '@
 
 $remoteDeploy | ssh nyx "bash -s"
+if ($LASTEXITCODE -ne 0) { throw 'Nyx deployment failed. Inspect the service and preserved backup before retrying.' }

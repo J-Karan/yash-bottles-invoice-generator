@@ -1,6 +1,29 @@
 # EWB Invoice System - AI Agent Handoff
 
-Last updated: 2026-07-17 IST.
+Last updated: 2026-09-28 IST.
+
+## Release 0.3.12 — Current Implementation
+
+This section supersedes older implementation and version notes below.
+
+- Invoice creation and deletion share an in-process mutation queue. Creation cannot
+  overwrite an existing number; edits carry an explicit invoice key.
+- Excel/PDF publication runs inside the synchronous SQLite save transaction. Recovery
+  manifests and previous file copies live under `data/invoice-publications/`; committed
+  publications finish cleanup, while uncommitted publications restore the previous files.
+  Do not manually delete this directory while a recovery is pending.
+- Successful date edits remove artifacts from the previous month directory.
+- Invoices snapshot buyer billing addresses as well as the existing name, GSTIN and
+  ship-to fields. History previews, regenerated artifacts and E-way exports use snapshots.
+  Legacy billing addresses are frozen from current masters once; this does not recover
+  historical address changes that were never saved.
+- `npm test` uses `scripts/run-tests.mjs`, synthetic masters and a temporary runtime.
+  Direct database tests without the isolated runtime are rejected. Deployments run
+  `npm test` and never need production secrets for tests.
+- The existing mobile preview table wrapper is preserved.
+- Loopback proxy trust, E-way busy timeout and route startup waits already exist in
+  source; older risk entries below describing them as missing are stale.
+
 
 This is the first file an AI agent should read for this project. It summarizes the local
 repository, the live Nyx deployment, runtime data shape, verification results, and the

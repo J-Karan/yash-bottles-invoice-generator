@@ -6,16 +6,24 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
-const generatedDir = path.join(rootDir, 'generated')
+if (process.env.NODE_TEST_CONTEXT && !process.env.INVOICE_TEST_RUNTIME) {
+  throw new Error('Database tests must run through npm test with an isolated test runtime.')
+}
+const runtimeDir = process.env.INVOICE_RUNTIME_DIR ? path.resolve(process.env.INVOICE_RUNTIME_DIR) : rootDir
+if (process.env.INVOICE_TEST_RUNTIME && runtimeDir === rootDir) {
+  throw new Error('Test runtime must be separate from the application directory.')
+}
+const generatedDir = path.join(runtimeDir, 'generated')
 const generatedExcelDir = path.join(generatedDir, 'excel')
 const generatedPdfDir = path.join(generatedDir, 'pdf')
-const dataDir = path.join(rootDir, 'data')
+const dataDir = path.join(runtimeDir, 'data')
 const mastersDir = path.join(dataDir, 'masters')
 const templatesDir = path.join(dataDir, 'templates')
 const dbPath = path.join(dataDir, 'invoice-app.sqlite')
 const distDir = path.join(rootDir, 'dist')
 const templatePath = resolvePath([
   path.join(templatesDir, 'Invoice Temp.xlsx'),
+  path.join(rootDir, 'data', 'templates', 'Invoice Temp.xlsx'),
   path.join(rootDir, 'Invoice Temp.xlsx'),
 ])
 const buyersPath = resolvePath([

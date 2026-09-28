@@ -39,6 +39,8 @@ import {
   fileExists,
 } from './invoice-artifacts.js'
 import { generatePdfInvoice } from './pdf-generator.js'
+import { withInvoiceMutation } from './invoice-mutations.js'
+import { preparePublication, publishFiles, finishPublication, recoverPublications } from './invoice-publication.js'
 import {
   initRepository,
   resolveShipToSelection,
@@ -47,7 +49,7 @@ import {
   readItems,
   readInvoiceHistory,
   readInvoiceDraft,
-  deleteInvoiceHistory,
+  deleteInvoiceHistory as deleteInvoiceHistoryFromRepository,
   readPaymentSummary,
   markUnpaidInvoicesPaid,
   createBuyer,
@@ -190,13 +192,26 @@ async function initializeDatabase() {
     );
   `)
 
+  recoverPublications(db)
   migrateInvoicePaymentTracking()
   await seedDatabaseFromCsv()
+  migrateBuyerSnapshots()
   seedOperationalDefaults()
   await normalizeInvoiceNumberingByFinancialYear()
   await normalizeGeneratedFileLayout()
   await normalizeGeneratedFileLayoutFullMonth()
   await normalizeGeneratedFileLayoutNumberedMonth()
+}
+
+function migrateBuyerSnapshots() {
+  for (const column of ['address_line1', 'address_line2', 'address_line3', 'city_state_pin']) {
+    addInvoiceColumnIfMissing(`buyer_${column}_snapshot`, 'TEXT DEFAULT NULL')
+    // Legacy invoices never stored billing addresses. Freeze the available master
+    // once; do not claim it reconstructs an address that was changed in the past.
+    db.exec(`UPDATE invoices SET buyer_${column}_snapshot = COALESCE(
+      (SELECT ${column} FROM buyers WHERE buyers.buyer_code = invoices.buyer_code), '')
+      WHERE buyer_${column}_snapshot IS NULL`)
+  }
 }
 
 function migrateInvoicePaymentTracking() {
@@ -723,10 +738,10 @@ function buildInvoiceArtifactPayload(invoiceNumber) {
       i.buyer_gstin_snapshot,
       i.ship_to_name_snapshot,
       i.ship_to_address_snapshot,
-      b.address_line1,
-      b.address_line2,
-      b.address_line3,
-      b.city_state_pin
+      i.buyer_address_line1_snapshot AS address_line1,
+      i.buyer_address_line2_snapshot AS address_line2,
+      i.buyer_address_line3_snapshot AS address_line3,
+      i.buyer_city_state_pin_snapshot AS city_state_pin
     FROM invoices i
     LEFT JOIN buyers b ON b.buyer_code = i.buyer_code
     WHERE i.invoice_number = ?
@@ -863,6 +878,7 @@ async function buildInvoicePayload(input) {
   return {
     invoiceNumber,
     invoiceKey,
+    editInvoiceKey: input.editInvoiceKey || '',
     invoiceDate,
     vehicleNumber,
     ...totals,
@@ -886,9 +902,13 @@ async function previewNextInvoiceNumber(invoiceDate) {
 }
 
 function reserveInvoiceNumberForNewPayload(payload, existingInvoice) {
-  if (existingInvoice) {
+  if (payload.editInvoiceKey) {
+    if (!existingInvoice || existingInvoice.invoice_key !== payload.editInvoiceKey) {
+      throw new Error('Invoice to update was not found.')
+    }
     return
   }
+  if (existingInvoice) throw new Error('Invoice number is no longer available. Generate again.')
 
   const parsed = parseInvoiceNumber(payload.invoiceNumber)
   if (!parsed?.financialYear) {
@@ -931,7 +951,7 @@ function assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate)
   }
 }
 
-async function saveInvoiceHistory(invoice) {
+async function saveInvoiceHistory(invoice, beforeCommit) {
   await dbReady
 
   const persistInvoice = withTransaction((payload) => {
@@ -1031,6 +1051,13 @@ async function saveInvoiceHistory(invoice) {
         line.taxableValue,
       )
     })
+    db.prepare(`UPDATE invoices SET buyer_address_line1_snapshot = ?,
+      buyer_address_line2_snapshot = ?, buyer_address_line3_snapshot = ?,
+      buyer_city_state_pin_snapshot = ? WHERE invoice_number = ?`).run(
+      payload.buyer.Address_Line1 || '', payload.buyer.Address_Line2 || '',
+      payload.buyer.Address_Line3 || '', payload.buyer.City_State_Pin || '', payload.invoiceNumber,
+    )
+    beforeCommit?.()
   })
 
   persistInvoice(invoice)
@@ -1038,9 +1065,27 @@ async function saveInvoiceHistory(invoice) {
 }
 
 async function generateAndSaveInvoice(input) {
+  return withInvoiceMutation(() => generateAndSaveInvoiceLocked(input))
+}
+
+async function deleteInvoiceHistory(invoiceKey) {
+  return withInvoiceMutation(async () => {
+    await dbReady
+    recoverPublications(db)
+    return deleteInvoiceHistoryFromRepository(invoiceKey)
+  })
+}
+
+async function generateAndSaveInvoiceLocked(input) {
+  await dbReady
+  recoverPublications(db)
   const invoicePayload = await buildInvoicePayload(input)
   const fileTargets = buildInvoiceFileTargets(invoicePayload.invoiceDate, invoicePayload.invoiceKey)
   const temporaryTargets = buildTemporaryInvoiceFileTargets(fileTargets)
+  const previous = input.editInvoiceKey
+    ? db.prepare('SELECT invoice_date FROM invoices WHERE invoice_key = ?').get(input.editInvoiceKey) : null
+  const oldTargets = previous ? buildInvoiceFileTargets(previous.invoice_date, invoicePayload.invoiceKey) : null
+  let publication
 
   try {
     await Promise.all([
@@ -1050,18 +1095,22 @@ async function generateAndSaveInvoice(input) {
 
     await generateExcelInvoice(invoicePayload, temporaryTargets.excel)
     await generatePdfInvoice(invoicePayload, temporaryTargets.pdf)
-    await saveInvoiceHistory(invoicePayload)
-
-    await Promise.all([
-      fs.rename(temporaryTargets.excel, fileTargets.excel.absolutePath),
-      fs.rename(temporaryTargets.pdf, fileTargets.pdf.absolutePath),
-    ])
+    publication = preparePublication(fileTargets, temporaryTargets, oldTargets)
+    await saveInvoiceHistory(invoicePayload, () => publishFiles(publication, db))
   } catch (error) {
+    if (publication) finishPublication(publication, db)
     await Promise.all([
       removeTemporaryFile(temporaryTargets.excel),
       removeTemporaryFile(temporaryTargets.pdf),
     ])
     throw error
+  }
+  try {
+    finishPublication(publication, db)
+  } catch {
+    // The invoice is committed. Retain the journal for cleanup on the next
+    // mutation/startup instead of reporting a failed save and inviting a retry.
+    console.error('Invoice saved; publication cleanup will be retried.')
   }
 
   return {

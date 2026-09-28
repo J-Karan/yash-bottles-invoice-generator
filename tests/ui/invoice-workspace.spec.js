@@ -321,6 +321,28 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   await expectNoHorizontalOverflow(page)
 })
 
+test('historical preview uses saved buyer and shipping details', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  await page.route('**/api/invoices/001-2026-27', (route) => route.fulfill({ json: {
+    invoice: { ...invoice, lineItems: [], savedLines: [],
+      savedTotals: { quantity: 0, taxableValue: 0, nonTaxableValue: 0, cgst: 0, sgst: 0, total: 0 },
+      buyerSnapshot: { Buyer_Code: 'B001', Buyer_Name: 'Original Buyer Name',
+        GSTIN: '27AAAAA1111A1Z1', Address_Line1: 'Original Billing Road',
+        Address_Line2: '', Address_Line3: '', City_State_Pin: 'Pune 411046',
+        Ship_To_Name: 'Original Warehouse', Ship_To_Address: 'Original Delivery Road 415521' },
+    },
+  } }))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Invoice History' }).click()
+  await page.getByRole('button', { name: /Preview invoice 001\/2026-27/ }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('Original Buyer Name', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Original Warehouse', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('27AAAAA1111A1Z1', { exact: false })).toBeVisible()
+  await expect(dialog.getByText('Acme Packaging', { exact: true })).toHaveCount(0)
+  await expectNoHorizontalOverflow(page)
+})
+
 test('mobile layout keeps invoice and history actions reachable', async ({ page }, testInfo) => {
   await mockAuthenticatedApis(page)
   await page.goto('/')

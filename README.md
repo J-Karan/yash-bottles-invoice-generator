@@ -157,6 +157,14 @@ current version number, and clicking it opens the in-app change log before login
 
 Current release:
 
+- `0.3.12` - protects concurrent invoice creation, rolls back failed file publication,
+  recovers interrupted saves, cleans obsolete month files, preserves buyer/destination
+  snapshots, and isolates deployment tests from production data.
+- Legacy billing addresses are frozen from the available buyer master during migration;
+  addresses changed before this release cannot be reconstructed automatically.
+- `npm test` creates synthetic masters and invoices in a temporary runtime and removes it
+  afterward. Direct database tests without the isolated runtime are rejected.
+
 - `0.3.5` - patched Vite/concurrently dev tooling, cleaned npm audits, and made the Node
   test runner deterministic for SQLite-backed tests.
 - `0.3.4` - UX polish for history actions, E-way distance entry, preview modal accessibility,

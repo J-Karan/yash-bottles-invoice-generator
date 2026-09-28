@@ -76,10 +76,10 @@ function readEwayReadiness() {
         i.buyer_gstin_snapshot,
         i.ship_to_name_snapshot,
         i.ship_to_address_snapshot,
-        b.address_line1,
-        b.address_line2,
-        b.address_line3,
-        b.city_state_pin,
+        i.buyer_address_line1_snapshot AS address_line1,
+        i.buyer_address_line2_snapshot AS address_line2,
+        i.buyer_address_line3_snapshot AS address_line3,
+        i.buyer_city_state_pin_snapshot AS city_state_pin,
         b.ship_to_name,
         b.ship_to_address,
         COUNT(l.id) AS line_count
@@ -172,10 +172,10 @@ function buildEwayBulkJson(invoiceKey, options = {}) {
         i.buyer_gstin_snapshot,
         i.ship_to_name_snapshot,
         i.ship_to_address_snapshot,
-        b.address_line1,
-        b.address_line2,
-        b.address_line3,
-        b.city_state_pin,
+        i.buyer_address_line1_snapshot AS address_line1,
+        i.buyer_address_line2_snapshot AS address_line2,
+        i.buyer_address_line3_snapshot AS address_line3,
+        i.buyer_city_state_pin_snapshot AS city_state_pin,
         b.ship_to_name,
         b.ship_to_address
       FROM invoices i
@@ -350,7 +350,7 @@ function resolveDistanceKm(invoice, overrideDistanceKm, distanceConfig = {}) {
     return { distanceKm: Math.round(override), source: 'manual-override' }
   }
 
-  const shipToAddress = sanitize(invoice.ship_to_address_snapshot || invoice.ship_to_address).toUpperCase()
+  const shipToAddress = sanitize(invoice.ship_to_address_snapshot ?? invoice.ship_to_address).toUpperCase()
   if (shipToAddress.includes('MIDC LONAND')) {
     return { distanceKm: 75, source: 'ship-to-default' }
   }
@@ -371,8 +371,8 @@ function resolveDistanceKm(invoice, overrideDistanceKm, distanceConfig = {}) {
 }
 
 function deriveDestination(invoice) {
-  const shipToName = sanitize(invoice.ship_to_name_snapshot || invoice.ship_to_name)
-  const shipToAddress = sanitize(invoice.ship_to_address_snapshot || invoice.ship_to_address)
+  const shipToName = sanitize(invoice.ship_to_name_snapshot ?? invoice.ship_to_name)
+  const shipToAddress = sanitize(invoice.ship_to_address_snapshot ?? invoice.ship_to_address)
   const hasDistinctShipTo =
     shipToAddress &&
     shipToName.toUpperCase() !== 'SAME AS TO'
@@ -402,8 +402,8 @@ function deriveDestination(invoice) {
 }
 
 function isBillToShipTo(invoice) {
-  const shipToName = sanitize(invoice.ship_to_name_snapshot || invoice.ship_to_name).toUpperCase()
-  const shipToAddress = sanitize(invoice.ship_to_address_snapshot || invoice.ship_to_address)
+  const shipToName = sanitize(invoice.ship_to_name_snapshot ?? invoice.ship_to_name).toUpperCase()
+  const shipToAddress = sanitize(invoice.ship_to_address_snapshot ?? invoice.ship_to_address)
   if (!shipToAddress || shipToName === 'SAME AS TO') {
     return false
   }
