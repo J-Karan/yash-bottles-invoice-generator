@@ -157,6 +157,9 @@ current version number, and clicking it opens the in-app change log before login
 
 Current release:
 
+- `0.3.13` - protects saved drafts and admin edits, clears state on logout, adds
+  retry for master loading, full-archive history search and pagination, compact
+  mobile forms, responsive previews, and keyboard focus improvements.
 - `0.3.12` - protects concurrent invoice creation, rolls back failed file publication,
   recovers interrupted saves, cleans obsolete month files, preserves buyer/destination
   snapshots, and isolates deployment tests from production data.

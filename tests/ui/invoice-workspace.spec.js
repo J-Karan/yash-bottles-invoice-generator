@@ -113,7 +113,7 @@ async function mockAuthenticatedApis(page) {
   })
   await page.route('**/api/auth/session', (route) => route.fulfill({ json: { ok: true } }))
   await page.route('**/api/masters', (route) => route.fulfill({ json: { buyers, items } }))
-  await page.route('**/api/invoices/history?limit=300', (route) =>
+  await page.route('**/api/invoices/history?*', (route) =>
     route.fulfill({
       json: {
         invoices: [invoice, olderInvoice],
@@ -160,6 +160,114 @@ async function expectNoHorizontalOverflow(page) {
   const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
   expect(hasOverflow).toBe(false)
 }
+
+test('master loading can recover and logout removes the previous draft', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  let fail = true
+  await page.route('**/api/masters', route => route.fulfill(fail
+    ? { status: 503, json: { error: 'Masters unavailable' } }
+    : { json: { buyers, items } }))
+  await page.route('**/api/auth/logout', route => route.fulfill({ json: { ok: true } }))
+  await page.route('**/api/auth/login', route => route.fulfill({ json: { token: 'new-session' } }))
+  await page.goto('/')
+  await expect(page.getByText('Masters unavailable')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Generate invoice' })).toBeDisabled()
+  fail = false
+  await page.getByRole('button', { name: 'Retry loading buyers and items' }).click()
+  await page.getByLabel('Vehicle number').fill('MH12ZZ9999')
+  await page.getByRole('button', { name: 'Log Out', exact: true }).click()
+  await page.getByLabel('Username').fill('test-user')
+  await page.getByLabel('Password', { exact: true }).fill('test-password')
+  await page.getByRole('button', { name: 'Enter Workspace' }).click()
+  await expect(page.getByLabel('Vehicle number')).not.toHaveValue('MH12ZZ9999')
+})
+
+test('saving locks inputs and explicit regeneration preserves the saved invoice key', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  const requests = []
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  await page.route('**/api/invoices/generate', async route => {
+    requests.push(route.request().postDataJSON())
+    if (requests.length === 1) await gate
+    await route.fulfill({ json: { invoice: { invoiceNumber: invoice.invoiceNumber, invoiceKey: invoice.invoiceKey }, files: invoice.files } })
+  })
+  await page.goto('/')
+  await page.getByLabel('Vehicle number').fill('MH12AB1234')
+  await page.getByRole('button', { name: 'Generate invoice', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Generating files...' })).toBeDisabled()
+  await expect(page.getByLabel('Number of bags')).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Log Out', exact: true })).toBeDisabled()
+  release()
+  await expect(page.getByRole('button', { name: 'Invoice saved', exact: true })).toBeDisabled()
+  expect(requests).toHaveLength(1)
+  await page.getByRole('button', { name: 'Edit saved invoice' }).click()
+  await page.getByLabel('Number of bags').fill('2')
+  await page.getByRole('button', { name: 'Regenerate invoice' }).click()
+  await expect(page.getByRole('button', { name: 'Invoice saved', exact: true })).toBeDisabled()
+  expect(requests[1].editInvoiceKey).toBe(invoice.invoiceKey)
+  await page.getByRole('button', { name: 'Start new invoice' }).click()
+  await expect(page.getByRole('button', { name: 'Generate invoice', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Download Excel' })).toHaveCount(0)
+})
+
+test('admin edits require save or discard before switching records and views', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  await page.addInitScript(() => localStorage.setItem('invoiceAdminToken', 'admin-test'))
+  await page.route('**/api/buyers/B001', route => route.fulfill({ json: { buyer: route.request().postDataJSON() } }))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Manage Buyers' }).click()
+  await page.locator('.admin-list-card').first().click()
+  if (page.viewportSize().width <= 960) await expect(page.getByRole('heading', { name: 'Edit buyer B001' })).toBeFocused()
+  await page.getByLabel('Buyer name', { exact: true }).fill('Changed buyer')
+  await page.getByRole('button', { name: 'Manage Items' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('button', { name: 'Keep editing' }).click()
+  await expect(page.getByLabel('Buyer name', { exact: true })).toHaveValue('Changed buyer')
+  await page.locator('.admin-list-card').last().click()
+  await page.getByRole('button', { name: 'Discard changes' }).click()
+  await expect(page.getByLabel('Buyer name', { exact: true })).toHaveValue('Zen Bottlers')
+  await page.locator('.admin-list-card').first().click()
+  await page.getByLabel('Buyer name', { exact: true }).fill('Saved buyer')
+  await page.getByRole('button', { name: 'Manage Items' }).click()
+  await page.getByRole('button', { name: 'Save and continue' }).click()
+  await expect(page.getByRole('heading', { name: 'Items', exact: true })).toBeVisible()
+})
+
+test('expired app session during an admin save returns to workspace login', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  await page.addInitScript(() => localStorage.setItem('invoiceAdminToken', 'admin-test'))
+  await page.route('**/api/buyers/B001', route => route.fulfill({ status: 401, json: { error: 'Session expired. Log in again.' } }))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Manage Buyers' }).click()
+  await page.locator('.admin-list-card').first().click()
+  await page.getByLabel('Buyer name', { exact: true }).fill('Unsaved buyer')
+  await page.getByRole('button', { name: 'Update buyer' }).click()
+  await expect(page.getByRole('heading', { name: 'Invoice workspace access' })).toBeVisible()
+  await expect(page.getByText('Session expired. Log in again.')).toBeVisible()
+})
+
+test('history pages and searches the archive through the server', async ({ page }) => {
+  await mockAuthenticatedApis(page)
+  await page.route('**/api/invoices/history?*', route => {
+    const url = new URL(route.request().url())
+    const offset = Number(url.searchParams.get('offset'))
+    const search = url.searchParams.get('search')
+    return route.fulfill({ json: {
+      invoices: [{ ...invoice, buyerName: search ? 'Archive match' : offset ? 'Older page' : 'Newest page', canDelete: !offset && !search }],
+      pagination: { offset, limit: 50, total: search ? 1 : 351 },
+    } })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Invoice History' }).click()
+  await expect(page.getByText('Newest page', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Next page' }).click()
+  await expect(page.getByText('Older page', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Delete invoice 001/2026-27' })).toHaveCount(0)
+  await page.getByPlaceholder('Invoice no, buyer, date, vehicle, GSTIN').fill('archive')
+  await expect(page.getByText('Showing 1–1 of 1 matching invoices')).toBeVisible()
+  await expectAnyVisibleText(page, 'Archive match')
+})
 
 async function expectAnyVisibleText(page, text) {
   const matches = page.getByText(text)
@@ -244,6 +352,12 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
   await expect(page.getByText('Generated invoice')).toBeVisible()
   await expect(page.getByText('Invoice 001/2026-27 generated')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Download Excel' })).toBeVisible()
+  await expect(page.getByLabel('Vehicle number')).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Invoice saved', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Edit saved invoice' }).click()
+  await expect(page.getByRole('button', { name: 'Download Excel' })).toHaveCount(0)
+  await expect(page.getByLabel('Vehicle number')).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Regenerate invoice' })).toBeEnabled()
   const viewport = page.viewportSize()
   if (!viewport || viewport.width > 960) {
     await expect(page.locator('.preview-panel')).toHaveCSS('overflow-y', 'visible')
@@ -295,6 +409,7 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
 
   await page.getByRole('button', { name: 'Mark Paid' }).click()
   await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toBeVisible()
+  await page.getByLabel('Payment Password').fill('test-fee-password')
   await page.keyboard.press('Tab')
   await page.keyboard.press('Tab')
   await page.keyboard.press('Tab')
@@ -302,6 +417,7 @@ test('history, payment, and admin gates remain usable', async ({ page }, testInf
   expect(paymentFocusInsideModal).toBe(true)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Mark Paid' })).toBeFocused()
 
   await page.getByRole('button', { name: 'Mark Paid' }).click()
   await expect(page.getByRole('heading', { name: 'Confirm Payment' })).toBeVisible()
@@ -350,6 +466,15 @@ test('mobile layout keeps invoice and history actions reachable', async ({ page 
   await expect(page.getByRole('heading', { name: 'Invoice details' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: testInfo.outputPath('mobile-invoice-workspace.png'), fullPage: true })
+
+  if (page.viewportSize().width <= 960) {
+    for (let index = 1; index < 8; index++) await page.getByRole('button', { name: 'Add item', exact: true }).click()
+    await page.locator('.line-item-card').nth(3).scrollIntoViewIfNeeded()
+    const saveBar = await page.locator('.invoice-submit-bar').boundingBox()
+    expect(saveBar.y).toBeGreaterThanOrEqual(0)
+    expect(saveBar.y + saveBar.height).toBeLessThanOrEqual(page.viewportSize().height)
+    await expect(page.getByRole('button', { name: 'Show invoice preview' })).toBeVisible()
+  }
 
   await page.getByRole('button', { name: 'Invoice History' }).click()
   await expectAnyVisibleText(page, 'Acme Packaging')

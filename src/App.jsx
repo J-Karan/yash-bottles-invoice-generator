@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { UnsavedChangesModal } from './components/UnsavedChangesModal.jsx'
 import { AdminAuthPanel } from './components/AdminAuthPanel.jsx'
 import { AdminBuyerPanel } from './components/AdminBuyerPanel.jsx'
 import { AdminItemPanel } from './components/AdminItemPanel.jsx'
@@ -79,6 +80,22 @@ function App() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [paymentPasswordInput, setPaymentPasswordInput] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [mastersError, setMastersError] = useState('')
+  const [mastersRefreshing, setMastersRefreshing] = useState(false)
+  const [previewExpanded, setPreviewExpanded] = useState(false)
+  const [historyPage, setHistoryPage] = useState({ offset: 0, limit: 50, total: 0 })
+  const historyRequest = useRef(0)
+  const historyTimer = useRef(null)
+  const sessionEpoch = useRef(0)
+  const submitLock = useRef(false)
+  const [buyerBaseline, setBuyerBaseline] = useState(emptyBuyerForm)
+  const [itemBaseline, setItemBaseline] = useState(emptyItemForm)
+  const [pendingNavigation, setPendingNavigation] = useState(null)
+  const pendingAction = useRef(null)
+  const buyerDirty = Object.keys(emptyBuyerForm).some(key => String(buyerForm[key] ?? '') !== String(buyerBaseline[key] ?? ''))
+  const itemDirty = Object.keys(emptyItemForm).some(key => String(itemForm[key] ?? '') !== String(itemBaseline[key] ?? ''))
+  const workspaceBusy = submitting || savingBuyer || savingItem || markingPaid
+  const mastersReady = !mastersError && !mastersRefreshing && buyers.length > 0 && items.length > 0
   const {
     adminFetch,
     adminPasswordInput,
@@ -97,6 +114,10 @@ function App() {
     clearAdminWorkspace: () => {
       setEditingBuyerCode('')
       setEditingItemCode('')
+      setBuyerForm(emptyBuyerForm)
+      setBuyerBaseline(emptyBuyerForm)
+      setItemForm(emptyItemForm)
+      setItemBaseline(emptyItemForm)
     },
     readResponseJson,
   })
@@ -129,6 +150,19 @@ function App() {
   }, [appToken])
 
   useEffect(() => {
+    if (!appToken || activeView !== 'history') return undefined
+    historyTimer.current = window.setTimeout(() => refreshHistory({ offset: 0, search: historySearch }), 250)
+    return () => window.clearTimeout(historyTimer.current)
+  }, [historySearch, activeView, appToken])
+
+  useEffect(() => {
+    if (!buyerDirty && !itemDirty) return undefined
+    const warn = event => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [buyerDirty, itemDirty])
+
+  useEffect(() => {
     if (activeView === 'history') {
       return
     }
@@ -140,22 +174,25 @@ function App() {
   }, [activeView])
 
   const selectedBuyer = useMemo(
-    () => buyers.find((buyer) => buyer.Buyer_Code === form.buyerCode),
-    [buyers, form.buyerCode],
+    () => result?.displaySnapshot?.buyer || buyers.find((buyer) => buyer.Buyer_Code === form.buyerCode),
+    [buyers, form.buyerCode, result],
   )
   const shipToOptions = useMemo(() => buildShipToOptions(selectedBuyer), [selectedBuyer])
   const selectedShipToOption = useMemo(
-    () => shipToOptions.find((option) => option.id === form.shipToOptionId) || shipToOptions[0] || null,
-    [form.shipToOptionId, shipToOptions],
+    () => result?.displaySnapshot?.shipTo || shipToOptions.find((option) => option.id === form.shipToOptionId) || shipToOptions[0] || null,
+    [form.shipToOptionId, shipToOptions, result],
   )
 
   const { computedLines, computedTotals } = useMemo(
-    () => calculateInvoiceDetails(form.lineItems, items),
-    [form.lineItems, items],
+    () => result?.displaySnapshot ? { computedLines: result.displaySnapshot.lines, computedTotals: result.displaySnapshot.totals }
+      : calculateInvoiceDetails(form.lineItems, items),
+    [form.lineItems, items, result],
   )
 
   const deletableInvoiceKeys = useMemo(
-    () => computeDeletableInvoiceKeys(invoiceHistory),
+    () => invoiceHistory.every(invoice => typeof invoice.canDelete === 'boolean')
+      ? new Set(invoiceHistory.filter(invoice => invoice.canDelete).map(invoice => invoice.invoiceKey))
+      : computeDeletableInvoiceKeys(invoiceHistory),
     [invoiceHistory],
   )
 
@@ -208,28 +245,7 @@ function App() {
     )
   }, [itemSearch, items])
 
-  const filteredInvoiceHistory = useMemo(() => {
-    const query = historySearch.trim().toLowerCase()
-    if (!query) {
-      return invoiceHistory
-    }
-
-    return invoiceHistory.filter((invoice) =>
-      [
-        invoice.invoiceNumber,
-        invoice.invoiceDate,
-        formatDisplayDate(invoice.invoiceDate),
-        invoice.buyerName,
-        invoice.buyerCode,
-        invoice.buyerGstin,
-        invoice.vehicleNumber,
-        String(invoice.total),
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [historySearch, invoiceHistory])
+  const filteredInvoiceHistory = invoiceHistory
 
   async function verifyAppSession() {
     setAppSessionChecking(true)
@@ -293,6 +309,8 @@ function App() {
   }
 
   function clearAppSession() {
+    sessionEpoch.current += 1
+    historyRequest.current += 1
     localStorage.removeItem('invoiceAppToken')
     localStorage.removeItem('invoiceAdminToken')
     setAppToken('')
@@ -305,9 +323,38 @@ function App() {
     setEditingInvoice(null)
     setLoginPassword('')
     setLoading(false)
+    setForm(createInitialInvoiceForm())
+    setActiveView('invoice')
+    setPreviewInvoice(null)
+    setPreviewExpanded(false)
+    setPaymentModalOpen(false)
+    setPaymentPasswordInput('')
+    setPendingDelete(null)
+    setPendingNavigation(null)
+    pendingAction.current = null
+    setBuyerForm(emptyBuyerForm)
+    setBuyerBaseline(emptyBuyerForm)
+    setItemForm(emptyItemForm)
+    setItemBaseline(emptyItemForm)
+    setEditingBuyerCode('')
+    setEditingItemCode('')
+    setBuyerSearch('')
+    setItemSearch('')
+    setHistorySearch('')
+    setBuyerError('')
+    setItemError('')
+    setBuyerStatus('')
+    setItemStatus('')
+    setPaymentError('')
+    setPaymentStatus('')
+    setPaymentSummary(defaultPaymentSummary)
+    setError('')
+    setMastersError('')
+    setSuccessToast({ message: '', visible: false })
   }
 
   async function appFetch(url, options = {}) {
+    const epoch = sessionEpoch.current
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -315,6 +362,7 @@ function App() {
         'X-Invoice-Session': appToken,
       },
     })
+    if (epoch !== sessionEpoch.current) throw new Error('This request belongs to a previous session.')
 
     if (response.status === 401) {
       const data = await response.clone().json().catch(() => ({}))
@@ -374,6 +422,7 @@ function App() {
   }
 
   async function refreshMasters() {
+    setMastersRefreshing(true)
     try {
       const response = await appFetch('/api/masters')
       const data = await readResponseJson(response)
@@ -385,30 +434,37 @@ function App() {
       setItems(data.items)
       setForm((current) => syncInvoiceForm(current, data.buyers, data.items))
       setError('')
+      setMastersError('')
     } catch (loadError) {
-      setError(loadError.message)
+      setMastersError(loadError.message)
     } finally {
       setLoading(false)
+      setMastersRefreshing(false)
     }
   }
 
-  async function refreshHistory() {
+  async function refreshHistory({ offset = 0, search = historySearch } = {}) {
+    window.clearTimeout(historyTimer.current)
+    const request = ++historyRequest.current
     setHistoryLoading(true)
     setHistoryError('')
 
     try {
-      const response = await appFetch('/api/invoices/history?limit=300')
+      const params = new URLSearchParams({ limit: '50', offset: String(offset), search })
+      const response = await appFetch(`/api/invoices/history?${params}`)
       const data = await readResponseJson(response)
+      if (request !== historyRequest.current) return
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load invoice history.')
       }
 
       setInvoiceHistory(Array.isArray(data.invoices) ? data.invoices : [])
       setPaymentSummary(data.paymentSummary || defaultPaymentSummary)
+      setHistoryPage(data.pagination || { offset: 0, limit: 50, total: data.invoices?.length || 0 })
     } catch (loadError) {
-      setHistoryError(loadError.message)
+      if (request === historyRequest.current) setHistoryError(loadError.message)
     } finally {
-      setHistoryLoading(false)
+      if (request === historyRequest.current) setHistoryLoading(false)
     }
   }
 
@@ -416,6 +472,7 @@ function App() {
     setEditingInvoice(null)
     setResult(null)
     setError('')
+    setPreviewExpanded(false)
     setForm(syncInvoiceForm(createInitialInvoiceForm(), buyers, items))
   }
 
@@ -471,6 +528,8 @@ function App() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (submitLock.current || result || !mastersReady) return
+    submitLock.current = true
     setSubmitting(true)
     setError('')
     const isEditingInvoice = Boolean(editingInvoice?.invoiceKey)
@@ -490,13 +549,10 @@ function App() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate invoice.')
       }
-      if (isEditingInvoice) {
-        setEditingInvoice({
-          invoiceKey: data.invoice.invoiceKey,
-          invoiceNumber: data.invoice.invoiceNumber,
-        })
-      }
-      setResult(data)
+      setEditingInvoice({ invoiceKey: data.invoice.invoiceKey, invoiceNumber: data.invoice.invoiceNumber })
+      setResult({ ...data, updated: isEditingInvoice, displaySnapshot: {
+        lines: computedLines, totals: computedTotals, buyer: selectedBuyer, shipTo: selectedShipToOption,
+      } })
       setSuccessToast({
         message: `Invoice ${data.invoice.invoiceNumber} ${isEditingInvoice ? 'updated' : 'generated'}`,
         visible: true,
@@ -506,6 +562,7 @@ function App() {
     } catch (submitError) {
       setError(submitError.message)
     } finally {
+      submitLock.current = false
       setSubmitting(false)
     }
   }
@@ -672,22 +729,70 @@ function App() {
     })
   }
 
-  function startBuyerCreate() {
+  function requestNavigation(action, kind = activeView) {
+    if (workspaceBusy) return
+    const dirty = kind === 'buyers' ? buyerDirty : kind === 'items' ? itemDirty : false
+    if (dirty) {
+      pendingAction.current = action
+      setPendingNavigation(kind)
+    } else action()
+  }
+
+  function finishNavigation(discard = false) {
+    if (discard) {
+      if (pendingNavigation === 'buyers') setBuyerForm({ ...buyerBaseline })
+      if (pendingNavigation === 'items') setItemForm({ ...itemBaseline })
+    }
+    const action = pendingAction.current
+    pendingAction.current = null
+    setPendingNavigation(null)
+    action?.()
+  }
+
+  async function saveBeforeNavigation() {
+    const saved = pendingNavigation === 'buyers' ? await submitBuyer() : await submitItem()
+    if (saved) finishNavigation()
+  }
+
+  function focusMasterEditor() {
+    window.requestAnimationFrame(() => {
+      if (!window.matchMedia('(max-width: 960px)').matches) return
+      const heading = document.querySelector('.admin-form-panel h2')
+      heading?.focus({ preventScroll: true })
+      heading?.scrollIntoView({ block: 'start', behavior: 'instant' })
+    })
+  }
+
+  function resetBuyerEditor() {
     setEditingBuyerCode('')
     setBuyerForm(emptyBuyerForm)
+    setBuyerBaseline(emptyBuyerForm)
     setBuyerError('')
     setBuyerStatus('')
+  }
+
+  function startBuyerCreate() {
+    requestNavigation(() => { resetBuyerEditor(); focusMasterEditor() }, 'buyers')
   }
 
   function startBuyerEdit(buyer) {
-    setEditingBuyerCode(buyer.Buyer_Code)
-    setBuyerForm({ ...buyer })
-    setBuyerError('')
-    setBuyerStatus('')
+    requestNavigation(() => {
+      setEditingBuyerCode(buyer.Buyer_Code)
+      setBuyerForm({ ...buyer })
+      setBuyerBaseline({ ...buyer })
+      setBuyerError('')
+      setBuyerStatus('')
+      focusMasterEditor()
+    }, 'buyers')
   }
 
   async function submitBuyer(event) {
-    event.preventDefault()
+    event?.preventDefault()
+    if (savingBuyer) return false
+    if (!document.querySelector('.admin-form-panel')?.checkValidity()) {
+      setBuyerError('Complete the required fields and correct invalid values before saving.')
+      return false
+    }
     setSavingBuyer(true)
     setBuyerError('')
     setBuyerStatus('')
@@ -709,30 +814,47 @@ function App() {
       await refreshMasters()
       setEditingBuyerCode(data.buyer.Buyer_Code)
       setBuyerForm({ ...data.buyer })
+      setBuyerBaseline({ ...data.buyer })
       setBuyerStatus(isEditing ? 'Buyer updated.' : 'Buyer created.')
+      return true
     } catch (saveError) {
       setBuyerError(saveError.message)
+      return false
     } finally {
       setSavingBuyer(false)
     }
   }
 
-  function startItemCreate() {
+  function resetItemEditor() {
     setEditingItemCode('')
     setItemForm(emptyItemForm)
+    setItemBaseline(emptyItemForm)
     setItemError('')
     setItemStatus('')
+  }
+
+  function startItemCreate() {
+    requestNavigation(() => { resetItemEditor(); focusMasterEditor() }, 'items')
   }
 
   function startItemEdit(item) {
-    setEditingItemCode(item.Item_Code)
-    setItemForm({ ...item })
-    setItemError('')
-    setItemStatus('')
+    requestNavigation(() => {
+      setEditingItemCode(item.Item_Code)
+      setItemForm({ ...item })
+      setItemBaseline({ ...item })
+      setItemError('')
+      setItemStatus('')
+      focusMasterEditor()
+    }, 'items')
   }
 
   async function submitItem(event) {
-    event.preventDefault()
+    event?.preventDefault()
+    if (savingItem) return false
+    if (!document.querySelector('.admin-form-panel')?.checkValidity()) {
+      setItemError('Complete the required fields and correct invalid values before saving.')
+      return false
+    }
     setSavingItem(true)
     setItemError('')
     setItemStatus('')
@@ -754,9 +876,12 @@ function App() {
       await refreshMasters()
       setEditingItemCode(data.item.Item_Code)
       setItemForm({ ...data.item })
+      setItemBaseline({ ...data.item })
       setItemStatus(isEditing ? 'Item updated.' : 'Item created.')
+      return true
     } catch (saveError) {
       setItemError(saveError.message)
+      return false
     } finally {
       setSavingItem(false)
     }
@@ -789,7 +914,7 @@ function App() {
       }
 
       await refreshMasters()
-      startBuyerCreate()
+      resetBuyerEditor()
       setBuyerStatus('Buyer deleted.')
       setPendingDelete(null)
     } catch (deleteError) {
@@ -827,7 +952,7 @@ function App() {
       }
 
       await refreshMasters()
-      startItemCreate()
+      resetItemEditor()
       setItemStatus('Item deleted.')
       setPendingDelete(null)
     } catch (deleteError) {
@@ -930,7 +1055,8 @@ function App() {
         <button
           className="workspace-version workspace-version-button"
           type="button"
-          onClick={() => setShowChangeLog(true)}
+          onClick={() => requestNavigation(() => setShowChangeLog(true))}
+          disabled={workspaceBusy}
         >
           Version {appVersion}
         </button>
@@ -938,11 +1064,21 @@ function App() {
 
       <WorkspaceSwitcher
         activeView={activeView}
-        setActiveView={setActiveView}
+        setActiveView={view => requestNavigation(() => setActiveView(view))}
+        busy={workspaceBusy}
         adminToken={adminToken}
-        onAdminLogout={handleAdminLogout}
-        onAppLogout={handleAppLogout}
+        onAdminLogout={() => requestNavigation(handleAdminLogout)}
+        onAppLogout={() => requestNavigation(handleAppLogout)}
       />
+
+      {mastersError || (!buyers.length || !items.length) ? (
+        <section className="panel master-recovery" aria-label="Master data status">
+          <p role="alert">{mastersError || 'Add at least one buyer and item before creating an invoice.'}</p>
+          <button className="secondary-button" type="button" disabled={mastersRefreshing} onClick={refreshMasters}>
+            {mastersRefreshing ? 'Retrying...' : 'Retry loading buyers and items'}
+          </button>
+        </section>
+      ) : null}
 
       {activeView === 'invoice' ? (
         <section className="content-grid">
@@ -950,25 +1086,29 @@ function App() {
             <div className="panel-header">
               <h2>Invoice details</h2>
               <p>
-                {editingInvoice
+                {result ? `Invoice ${result.invoice.invoiceNumber} is saved. The preview and downloads show that saved version.` : editingInvoice
                   ? `Editing ${editingInvoice.invoiceNumber}. Saving will overwrite its Excel and PDF files.`
-                  : 'Buyer and item options now come from SQLite-backed master data.'}
+                  : 'Choose the buyer, delivery address, and items to create your invoice.'}
               </p>
             </div>
 
             {editingInvoice ? (
               <div className="downloads">
                 <p>
-                  Editing invoice <strong>{editingInvoice.invoiceNumber}</strong>. Regenerating will rewrite the previous files.
+                  {result ? 'Saved invoice' : 'Unsaved changes to invoice'} <strong>{editingInvoice.invoiceNumber}</strong>.
                 </p>
                 <div className="download-actions">
-                  <button className="secondary-button" type="button" onClick={resetInvoiceWorkspace}>
+                  {result ? <button className="secondary-button" type="button" onClick={() => { setResult(null); setError('') }}>
+                    Edit saved invoice
+                  </button> : null}
+                  <button className="secondary-button" type="button" disabled={submitting} onClick={resetInvoiceWorkspace}>
                     Start new invoice
                   </button>
                 </div>
               </div>
             ) : null}
 
+            <fieldset className="invoice-fields" disabled={submitting || Boolean(result) || !mastersReady}>
             <div className="top-fields">
               <label className="field-span-2">
                 <span>Buyer name</span>
@@ -1026,7 +1166,7 @@ function App() {
               <div className="line-items-header">
                 <div>
                   <span className="section-label">Invoice items</span>
-                  <p>Add as many item rows as you need.</p>
+                  <p>Add up to {maxLineItems} items.</p>
                 </div>
                 <button
                   className="secondary-button"
@@ -1038,7 +1178,6 @@ function App() {
                 </button>
               </div>
 
-              <p className="hint-text">Current Excel template supports up to {maxLineItems} item rows.</p>
               {form.lineItems.length >= maxLineItems ? (
                 <p className="inline-warning">Maximum {maxLineItems} item rows reached for this Excel template.</p>
               ) : null}
@@ -1087,6 +1226,8 @@ function App() {
                         </label>
                       </div>
 
+                      <details className="line-item-calculations">
+                        <summary>{line.quantity || 0} pieces · {formatMoney(line.amount)} · View calculations</summary>
                       <div className="line-item-metrics">
                         <div className="metric-card">
                           <span className="metric-label">Qty</span>
@@ -1111,6 +1252,7 @@ function App() {
                           <small className="metric-note">HSN {line.selectedItem?.HSN_Code || '7010'}</small>
                         </div>
                       </div>
+                      </details>
                     </div>
                   </article>
                 ))}
@@ -1135,17 +1277,28 @@ function App() {
               </article>
             </div>
 
+            </fieldset>
+
             {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
-            <button className="primary-button" type="submit" disabled={submitting}>
-              {submitting ? 'Generating files...' : editingInvoice ? 'Regenerate invoice' : 'Generate invoice'}
+            <div className="invoice-submit-bar">
+              <div><span>{result ? 'Saved total' : 'Invoice total'}</span><strong>{formatMoney(computedTotals.total)}</strong></div>
+            <button className="primary-button" type="submit" disabled={submitting || Boolean(result) || !mastersReady}>
+              {submitting ? 'Generating files...' : result ? 'Invoice saved' : editingInvoice ? 'Regenerate invoice' : 'Generate invoice'}
             </button>
+            </div>
           </form>
 
-          <section className="panel preview-panel">
+          <section className={`panel preview-panel ${previewExpanded ? 'preview-expanded' : ''}`}>
+            <button className="secondary-button mobile-preview-toggle" type="button"
+              aria-expanded={previewExpanded} aria-controls="invoice-preview-content"
+              onClick={() => setPreviewExpanded(value => !value)}>
+              {previewExpanded ? 'Hide invoice preview' : 'Show invoice preview'}
+            </button>
+            <div className="preview-content" id="invoice-preview-content">
             <div className="panel-header">
-              <h2>Live preview</h2>
-              <p>The generated Excel uses your template workbook. The PDF uses the same invoice data.</p>
+              <h2>{result ? 'Saved invoice preview' : 'Live preview'}</h2>
+              <p>{result ? 'These are the saved values used by the downloads below.' : 'Review your draft before saving. Downloads become available after saving.'}</p>
             </div>
 
             <div className="invoice-card">
@@ -1241,10 +1394,11 @@ function App() {
               </div>
             </div>
 
+            </div>
             {result ? (
               <div className="downloads">
                 <p>
-                  {editingInvoice ? 'Updated invoice ' : 'Generated invoice '}
+                  {result.updated ? 'Updated invoice ' : 'Generated invoice '}
                   <strong>{result.invoice.invoiceNumber}</strong>
                 </p>
                 <div className="download-actions">
@@ -1264,6 +1418,7 @@ function App() {
                     <div className="eway-inline-distance">
                       <span>Distance km</span>
                       <input
+                        aria-label="E-way distance in kilometres"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         placeholder="Enter KM"
@@ -1334,6 +1489,8 @@ function App() {
           paymentStatus={paymentStatus}
           paymentSummary={paymentSummary}
           setHistorySearch={setHistorySearch}
+          pagination={historyPage}
+          onPageChange={offset => refreshHistory({ offset })}
           onOpenPreview={openInvoicePreview}
           previewLoading={previewLoading}
         />
@@ -1360,6 +1517,12 @@ function App() {
           onConfirm={confirmPendingDelete}
         />
       ) : null}
+      {pendingNavigation ? <UnsavedChangesModal
+        busy={savingBuyer || savingItem}
+        error={pendingNavigation === 'buyers' ? buyerError : itemError}
+        onCancel={() => { setPendingNavigation(null); pendingAction.current = null }}
+        onDiscard={() => finishNavigation(true)} onSave={saveBeforeNavigation}
+      /> : null}
 
       {(activeView === 'buyers' || activeView === 'items') && !adminToken ? (
         <AdminAuthPanel

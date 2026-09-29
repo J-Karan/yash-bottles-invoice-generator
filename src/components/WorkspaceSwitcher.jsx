@@ -11,6 +11,7 @@ function WorkspaceSwitcher({
   adminToken,
   onAdminLogout,
   onAppLogout,
+  busy = false,
 }) {
   return (
     <nav className="workspace-switcher" aria-label="Workspace sections">
@@ -19,6 +20,7 @@ function WorkspaceSwitcher({
           key={view.id}
           className={`view-chip ${activeView === view.id ? 'view-chip-active' : ''}`}
           type="button"
+          disabled={busy}
           aria-current={activeView === view.id ? 'page' : undefined}
           onClick={() => setActiveView(view.id)}
         >
@@ -26,11 +28,11 @@ function WorkspaceSwitcher({
         </button>
       ))}
       {adminToken ? (
-        <button className="view-chip" type="button" onClick={onAdminLogout}>
+        <button className="view-chip" type="button" disabled={busy} onClick={onAdminLogout}>
           Log Out Admin
         </button>
       ) : null}
-      <button className="view-chip" type="button" onClick={onAppLogout}>
+      <button className="view-chip" type="button" disabled={busy} onClick={onAppLogout}>
         Log Out
       </button>
     </nav>

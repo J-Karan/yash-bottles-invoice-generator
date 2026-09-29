@@ -38,11 +38,10 @@ function useAdminAuth({
   }
 
   async function adminFetch(url, options = {}) {
-    const response = await fetch(url, {
+    const response = await appFetch(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
-        'X-Invoice-Session': appToken,
         Authorization: `Bearer ${adminToken}`,
       },
     })
@@ -111,6 +110,9 @@ function useAdminAuth({
   function clearAdminToken() {
     localStorage.removeItem('invoiceAdminToken')
     setAdminToken('')
+    setAdminPasswordInput('')
+    setShowAdminPassword(false)
+    setAuthError('')
   }
 
   return {

@@ -31,7 +31,7 @@ function PaymentModal({
       >
         <div className="panel-header">
           <h2 id="payment-modal-title">Confirm Payment</h2>
-          <p>Confirm this payment batch.</p>
+          <p>Confirm invoice service fees. This does not record buyer payments for goods.</p>
         </div>
 
         <div className="history-overview modal-metrics">
@@ -40,11 +40,11 @@ function PaymentModal({
             <strong>{paymentSummary.unpaidInvoices}</strong>
           </article>
           <article>
-            <span>Amount Due</span>
+            <span>Service fees due</span>
             <strong>{formatMoney(paymentSummary.amountDue)}</strong>
           </article>
           <article>
-            <span>Rate</span>
+            <span>Fee per invoice</span>
             <strong>{formatMoney(paymentSummary.invoiceRate)}</strong>
           </article>
         </div>
@@ -61,12 +61,11 @@ function PaymentModal({
             onChange={(event) => setPaymentPasswordInput(event.target.value)}
             placeholder="Enter payment password"
             autoComplete="current-password"
-            autoFocus
             required
           />
         </label>
 
-        {paymentError ? <p className="error-banner">{paymentError}</p> : null}
+        {paymentError ? <p className="error-banner" role="alert">{paymentError}</p> : null}
 
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={() => onClose()} disabled={markingPaid}>

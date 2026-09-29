@@ -235,7 +235,18 @@ async function readItems() {
   return rows.map(mapItemRow)
 }
 
-async function readInvoiceHistory(limit = 200) {
+const historySearchExpression = `lower(i.invoice_number || ' ' || i.invoice_date || ' ' ||
+  strftime('%d/%m/%Y', i.invoice_date) || ' ' || strftime('%d', i.invoice_date) || ' ' ||
+  substr('JanFebMarAprMayJunJulAugSepOctNovDec', (CAST(strftime('%m', i.invoice_date) AS INTEGER)-1)*3+1, 3) || ' ' ||
+  strftime('%Y', i.invoice_date) || ' ' || i.buyer_name_snapshot || ' ' || i.buyer_code || ' ' ||
+  COALESCE(i.buyer_gstin_snapshot, '') || ' ' || i.vehicle_number || ' ' || CAST(i.total AS TEXT))`
+
+function readInvoiceHistoryCount(search = '') {
+  return Number(db.prepare(`SELECT COUNT(*) AS count FROM invoices i WHERE instr(${historySearchExpression}, lower(?)) > 0`)
+    .get(String(search).trim()).count)
+}
+
+async function readInvoiceHistory(limit = 200, { offset = 0, search = '' } = {}) {
   const requestedLimit = Number(limit)
   const safeLimit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 1000)
@@ -259,20 +270,27 @@ async function readInvoiceHistory(limit = 200) {
       i.paid_at,
       i.paid_amount,
       i.payment_batch_note,
-      COALESCE(lines.line_count, 0) AS line_count
+      COALESCE(lines.line_count, 0) AS line_count,
+      NOT EXISTS (
+        SELECT 1 FROM invoices newer
+        WHERE substr(newer.invoice_number, instr(newer.invoice_number, '/') + 1) = substr(i.invoice_number, instr(i.invoice_number, '/') + 1)
+          AND CAST(newer.invoice_number AS INTEGER) > CAST(i.invoice_number AS INTEGER)
+      ) AS can_delete
     FROM invoices i
     LEFT JOIN (
       SELECT invoice_number, COUNT(*) AS line_count
       FROM invoice_lines
       GROUP BY invoice_number
     ) AS lines ON lines.invoice_number = i.invoice_number
+    WHERE instr(${historySearchExpression}, lower(?)) > 0
     ORDER BY i.created_at DESC, i.invoice_number DESC
-    LIMIT ?
-  `).all(safeLimit)
+    LIMIT ? OFFSET ?
+  `).all(String(search).trim(), safeLimit, Number.isFinite(Number(offset)) ? Math.max(0, Math.floor(Number(offset))) : 0)
 
   return rows.map((row) => ({
     invoiceNumber: row.invoice_number,
     invoiceKey: row.invoice_key,
+    canDelete: Boolean(row.can_delete),
     invoiceDate: row.invoice_date,
     vehicleNumber: row.vehicle_number,
     quantity: Number(row.quantity || 0),
@@ -784,6 +802,7 @@ export {
   readBuyers,
   readItems,
   readInvoiceHistory,
+  readInvoiceHistoryCount,
   readInvoiceDraft,
   deleteInvoiceHistory,
   readPaymentSummary,

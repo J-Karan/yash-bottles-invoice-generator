@@ -19,7 +19,7 @@ export function AdminBuyerPanel({
         <div className="panel-header panel-header-row">
           <div>
             <h2>Buyers</h2>
-            <p>Live master records stored in SQLite.</p>
+            <p>Manage buyer billing and delivery details.</p>
           </div>
           <button className="secondary-button" type="button" onClick={onStartBuyerCreate} disabled={savingBuyer}>
             New buyer
@@ -55,11 +55,11 @@ export function AdminBuyerPanel({
 
       <form className="panel admin-form-panel" onSubmit={onSubmitBuyer}>
         <div className="panel-header">
-          <h2>{editingBuyerCode ? `Edit buyer ${editingBuyerCode}` : 'Create buyer'}</h2>
-          <p>Changes save directly into the SQLite master database.</p>
+          <h2 tabIndex="-1">{editingBuyerCode ? `Edit buyer ${editingBuyerCode}` : 'Create buyer'}</h2>
+          <p>Saved changes apply to future invoices.</p>
         </div>
 
-        <div className="admin-form-grid">
+        <fieldset className="admin-form-grid" disabled={savingBuyer}>
           <label>
             <span>Buyer code</span>
             <input
@@ -136,10 +136,10 @@ export function AdminBuyerPanel({
               onChange={(event) => setBuyerForm((current) => ({ ...current, Ship_To_Address: event.target.value }))}
             />
           </label>
-        </div>
+        </fieldset>
 
-        {buyerError ? <p className="error-banner">{buyerError}</p> : null}
-        {buyerStatus ? <p className="success-banner">{buyerStatus}</p> : null}
+        {buyerError ? <p className="error-banner" role="alert">{buyerError}</p> : null}
+        {buyerStatus ? <p className="success-banner" role="status">{buyerStatus}</p> : null}
 
         <div className="admin-actions">
           <button className="primary-button" type="submit" disabled={savingBuyer}>

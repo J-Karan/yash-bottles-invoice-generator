@@ -25,7 +25,7 @@
 html {
   min-width: 320px;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -35,13 +35,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--ink);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 #root {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button,

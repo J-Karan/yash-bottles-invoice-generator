@@ -1,11 +1,18 @@
 # EWB Invoice System - AI Agent Handoff
 
-Last updated: 2026-09-28 IST.
+Last updated: 2026-09-29 IST.
 
-## Release 0.3.12 — Current Implementation
+## Release 0.3.13 — Current Implementation
 
 This section supersedes older implementation and version notes below.
 
+- Saved invoice forms are locked; explicit editing regenerates the same invoice.
+  Saved display snapshots keep previews aligned while master data changes.
+- Unsaved buyer/item changes guard record selection and workspace navigation.
+- History uses server search, offset/limit pagination and global canDelete flags.
+- Mobile forms use expandable calculations and a sticky save bar; the live preview
+  is toggled and historical party details reflow vertically.
+- Logout clears drafts. Admin requests use the shared workspace session handler.
 - Invoice creation and deletion share an in-process mutation queue. Creation cannot
   overwrite an existing number; edits carry an explicit invoice key.
 - Excel/PDF publication runs inside the synchronous SQLite save transaction. Recovery

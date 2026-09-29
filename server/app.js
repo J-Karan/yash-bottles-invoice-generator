@@ -33,6 +33,7 @@ import {
   updateItem,
 } from './invoice-core.js'
 import { normalizeInvoiceKey, sanitizeHeaderFilenameBase } from './input-validation.js'
+import { readInvoiceHistoryCount } from './invoice-repository.js'
 
 const app = express()
 const allowedCorsOrigins = new Set(
@@ -223,8 +224,12 @@ app.get('/api/items', requireAdmin, async (_req, res) => {
 app.get('/api/invoices/history', async (req, res) => {
   try {
     await dbReady
-    const limit = Number(req.query?.limit || 200)
-    const invoices = await readInvoiceHistory(limit)
+    const requestedLimit = Number(req.query?.limit || 200)
+    const limit = Number.isFinite(requestedLimit) ? Math.min(1000, Math.max(1, Math.floor(requestedLimit))) : 200
+    const requestedOffset = Number(req.query?.offset || 0)
+    const offset = Number.isFinite(requestedOffset) ? Math.max(0, Math.floor(requestedOffset)) : 0
+    const search = String(req.query?.search || '').trim().slice(0, 200)
+    const invoices = await readInvoiceHistory(limit, { offset, search })
     const withFiles = invoices.map((invoice) => {
       const fileTargets = buildInvoiceFileTargets(invoice.invoiceDate, invoice.invoiceKey)
       const excelPath = fileTargets.excel.absolutePath
@@ -243,7 +248,8 @@ app.get('/api/invoices/history', async (req, res) => {
       }
     })
 
-    res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary() })
+    res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary(),
+      pagination: { limit, offset, total: readInvoiceHistoryCount(search) } })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

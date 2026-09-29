@@ -1,5 +1,20 @@
 const changeLogEntries = [
   {
+    version: '0.3.13',
+    title: 'Safer Editing & Mobile Workspace',
+    changes: [
+      'Saved invoices lock their fields and downloads to the saved values. Choose Edit saved invoice to regenerate, or Start new invoice for a new number.',
+      'Invoice fields and navigation stay locked while a save is in progress, preventing accidental repeat submissions.',
+      'Logging out clears drafts and private workspace state. Expired workspace sessions during admin actions return to the main login.',
+      'Buyer and item edits now offer Save and continue, Discard changes, or Keep editing before leaving or selecting another record.',
+      'Mobile item rows are shorter, calculations expand on demand, and the total and save action stay visible while scrolling the form.',
+      'Mobile previews are optional, and historical previews wrap billing and delivery details with horizontal scrolling limited to the item table.',
+      'Failed master loading offers Retry and prevents invoice generation until buyers and items are available.',
+      'Invoice history now searches the full archive and provides pages of 50 records, while protecting older invoices from deletion.',
+      'Improved modal keyboard focus, mobile admin editor focus, error announcements, and service-fee labels.',
+    ],
+  },
+  {
     version: '0.3.12',
     title: 'Invoice Save Safety & Historical Accuracy',
     changes: [

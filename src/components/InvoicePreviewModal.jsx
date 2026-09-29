@@ -111,7 +111,7 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
             </div>
           </section>
 
-          <div className="preview-table-container">
+          <div className="preview-table-container" tabIndex="0" role="region" aria-label="Invoice line items, scroll horizontally for all columns">
             <table className="preview-sheet-table">
               <thead>
                 <tr>

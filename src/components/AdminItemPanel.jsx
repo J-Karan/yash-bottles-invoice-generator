@@ -57,11 +57,11 @@ export function AdminItemPanel({
 
       <form className="panel admin-form-panel" onSubmit={onSubmitItem}>
         <div className="panel-header">
-          <h2>{editingItemCode ? `Edit item ${editingItemCode}` : 'Create item'}</h2>
+          <h2 tabIndex="-1">{editingItemCode ? `Edit item ${editingItemCode}` : 'Create item'}</h2>
           <p>Rates saved here will immediately affect future invoices.</p>
         </div>
 
-        <div className="admin-form-grid">
+        <fieldset className="admin-form-grid" disabled={savingItem}>
           <label>
             <span>Item code</span>
             <input
@@ -146,10 +146,10 @@ export function AdminItemPanel({
               onChange={(event) => setItemForm((current) => ({ ...current, Dad_Writes_As: event.target.value }))}
             />
           </label>
-        </div>
+        </fieldset>
 
-        {itemError ? <p className="error-banner">{itemError}</p> : null}
-        {itemStatus ? <p className="success-banner">{itemStatus}</p> : null}
+        {itemError ? <p className="error-banner" role="alert">{itemError}</p> : null}
+        {itemStatus ? <p className="success-banner" role="status">{itemStatus}</p> : null}
 
         <div className="admin-actions">
           <button className="primary-button" type="submit" disabled={savingItem}>

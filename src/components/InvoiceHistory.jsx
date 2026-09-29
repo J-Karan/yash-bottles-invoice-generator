@@ -24,13 +24,15 @@ export function InvoiceHistory({
   setHistorySearch,
   onOpenPreview,
   previewLoading,
+  pagination = { offset: 0, limit: 50, total: 0 },
+  onPageChange,
 }) {
   return (
     <section className="panel history-panel">
       <div className="panel-header panel-header-row">
         <div>
           <h2>Invoice History</h2>
-          <p>Review generated invoices, download files, and clear the payment counter when paid.</p>
+          <p>Review invoices and downloads. Payment tracking below covers invoice-generation service fees.</p>
         </div>
         <div className="panel-actions">
           <button
@@ -58,14 +60,14 @@ export function InvoiceHistory({
       <div className="history-overview">
         <article>
           <span>Records</span>
-          <strong>{invoiceHistory.length}</strong>
+          <strong>{paymentSummary.totalInvoices}</strong>
         </article>
         <article>
-          <span>Non Paid Invoices</span>
+          <span>Unpaid service fees</span>
           <strong>{paymentSummary.unpaidInvoices}</strong>
         </article>
         <article>
-          <span>Amount Due</span>
+          <span>Service fees due</span>
           <strong>{formatMoney(paymentSummary.amountDue)}</strong>
         </article>
       </div>
@@ -86,6 +88,7 @@ export function InvoiceHistory({
             <button
               className="clear-search-button"
               type="button"
+              aria-label="Clear search"
               onClick={() => setHistorySearch('')}
             >
               &times;
@@ -99,7 +102,7 @@ export function InvoiceHistory({
       {paymentStatus ? <p className="success-banner" role="status">{paymentStatus}</p> : null}
       {ewayError ? <p className="error-banner" role="alert">{ewayError}</p> : null}
       {historyLoading ? <p className="hint-text">Loading invoice history...</p> : null}
-      {!historyLoading && !filteredInvoiceHistory.length ? (
+      {!historyLoading && !historyError && !filteredInvoiceHistory.length ? (
         <p className="hint-text">No invoices found for the current filter.</p>
       ) : null}
 
@@ -115,7 +118,7 @@ export function InvoiceHistory({
                   <th>Vehicle</th>
                   <th>Lines</th>
                   <th>Total</th>
-                  <th>Payment</th>
+                  <th>Service fee</th>
                   <th>Files</th>
                 </tr>
               </thead>
@@ -235,7 +238,7 @@ export function InvoiceHistory({
                     <dd>{formatMoney(invoice.total)}</dd>
                   </div>
                   <div>
-                    <dt>Payment</dt>
+                    <dt>Service fee</dt>
                     <dd>{invoice.isPaid ? 'Paid' : 'Non paid'}</dd>
                   </div>
                   <div>
@@ -306,6 +309,15 @@ export function InvoiceHistory({
           </div>
         </div>
       ) : null}
+      <div className="history-pagination" aria-label="History pagination">
+        <p role="status">{pagination.total ? `Showing ${pagination.offset + 1}–${Math.min(pagination.offset + invoiceHistory.length, pagination.total)} of ${pagination.total}${historySearch ? ' matching' : ''} invoices` : 'No matching invoices'}</p>
+        <div className="panel-actions">
+          <button type="button" className="secondary-button" disabled={historyLoading || pagination.offset === 0}
+            onClick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}>Previous page</button>
+          <button type="button" className="secondary-button" disabled={historyLoading || pagination.offset + pagination.limit >= pagination.total}
+            onClick={() => onPageChange(pagination.offset + pagination.limit)}>Next page</button>
+        </div>
+      </div>
     </section>
   )
 }

@@ -46,7 +46,7 @@ function AdminAuthPanel({
         <p className="hint-text admin-auth-hint">
           Use the admin password configured on the server.
         </p>
-        {authError ? <p className="error-banner">{authError}</p> : null}
+        {authError ? <p className="error-banner" role="alert">{authError}</p> : null}
 
         <button className="primary-button admin-auth-submit" type="submit" disabled={authBusy}>
           {authBusy ? 'Signing in...' : 'Log in as admin'}
