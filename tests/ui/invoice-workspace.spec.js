@@ -369,7 +369,7 @@ test('invoice workspace supports core interactions', async ({ page }, testInfo) 
         preview: previewPanel?.getBoundingClientRect().height ?? 0,
       }
     })
-    expect(Math.abs(panelHeights.form - panelHeights.preview)).toBeLessThanOrEqual(1)
+    expect(panelHeights.form).toBeLessThan(panelHeights.preview)
   }
   await expectNoHorizontalOverflow(page)
 })

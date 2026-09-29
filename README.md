@@ -157,6 +157,8 @@ current version number, and clicking it opens the in-app change log before login
 
 Current release:
 
+- `0.3.14` - allows deleting only the latest invoice across the newest
+  financial year and removes the empty space below the invoice form.
 - `0.3.13` - protects saved drafts and admin edits, clears state on logout, adds
   retry for master loading, full-archive history search and pagination, compact
   mobile forms, responsive previews, and keyboard focus improvements.

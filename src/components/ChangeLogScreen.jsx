@@ -1,5 +1,13 @@
 const changeLogEntries = [
   {
+    version: '0.3.14',
+    title: 'Latest Invoice Delete Rule & Form Spacing',
+    changes: [
+      'Delete is available only for the latest invoice in the newest financial year; older financial years are protected in both the history view and server.',
+      'The invoice form now ends after its save action instead of stretching to match a taller preview.',
+    ],
+  },
+  {
     version: '0.3.13',
     title: 'Safer Editing & Mobile Workspace',
     changes: [

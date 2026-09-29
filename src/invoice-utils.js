@@ -292,7 +292,7 @@ function calculateInvoiceDetails(lineItems, items) {
 }
 
 function computeDeletableInvoiceKeys(invoices) {
-  const latestByFinancialYear = new Map()
+  let latest = null
 
   for (const invoice of invoices || []) {
     const match = String(invoice.invoiceNumber || '').match(/^(\d+)\/(\d{4}-\d{2})$/)
@@ -302,13 +302,13 @@ function computeDeletableInvoiceKeys(invoices) {
 
     const serial = Number(match[1])
     const financialYear = match[2]
-    const current = latestByFinancialYear.get(financialYear)
-    if (!current || serial > current.serial) {
-      latestByFinancialYear.set(financialYear, { serial, invoiceKey: invoice.invoiceKey })
+    if (!latest || financialYear > latest.financialYear ||
+      (financialYear === latest.financialYear && serial > latest.serial)) {
+      latest = { financialYear, serial, invoiceKey: invoice.invoiceKey }
     }
   }
 
-  return new Set([...latestByFinancialYear.values()].map((entry) => entry.invoiceKey))
+  return new Set(latest ? [latest.invoiceKey] : [])
 }
 
 export {

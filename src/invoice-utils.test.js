@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  computeDeletableInvoiceKeys,
   formatDisplayDate,
   formatDisplayDateTime,
   getBusinessDateString,
   resolveShipToOptionId,
 } from './invoice-utils.js'
+
+it('allows only the latest serial in the newest financial year to be deleted', () => {
+  const deletable = computeDeletableInvoiceKeys([
+    { invoiceNumber: '032/2025-26', invoiceKey: 'prior-year' },
+    { invoiceNumber: '002/2026-27', invoiceKey: 'latest' },
+    { invoiceNumber: '001/2026-27', invoiceKey: 'earlier-current-year' },
+  ])
+  assert.deepEqual([...deletable], ['latest'])
+})
 
 describe('resolveShipToOptionId', () => {
   it('keeps a valid selected ship-to option', () => {

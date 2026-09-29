@@ -271,10 +271,13 @@ async function readInvoiceHistory(limit = 200, { offset = 0, search = '' } = {})
       i.paid_amount,
       i.payment_batch_note,
       COALESCE(lines.line_count, 0) AS line_count,
-      NOT EXISTS (
-        SELECT 1 FROM invoices newer
-        WHERE substr(newer.invoice_number, instr(newer.invoice_number, '/') + 1) = substr(i.invoice_number, instr(i.invoice_number, '/') + 1)
-          AND CAST(newer.invoice_number AS INTEGER) > CAST(i.invoice_number AS INTEGER)
+      i.invoice_number = (
+        SELECT latest.invoice_number
+        FROM invoices latest
+        ORDER BY
+          substr(latest.invoice_number, instr(latest.invoice_number, '/') + 1) DESC,
+          CAST(latest.invoice_number AS INTEGER) DESC
+        LIMIT 1
       ) AS can_delete
     FROM invoices i
     LEFT JOIN (
@@ -486,13 +489,15 @@ async function deleteInvoiceHistory(invoiceKey) {
     throw error
   }
 
-  const latestSerialRow = db.prepare(`
-    SELECT MAX(CAST(substr(invoice_number, 1, instr(invoice_number, '/') - 1) AS INTEGER)) AS latest_serial
+  const latestInvoice = db.prepare(`
+    SELECT invoice_number
     FROM invoices
-    WHERE invoice_number LIKE '%' || '/' || ?
-  `).get(parsed.financialYear)
-  const latestSerial = Number(latestSerialRow?.latest_serial || 0)
-  if (parsed.serial !== latestSerial) {
+    ORDER BY
+      substr(invoice_number, instr(invoice_number, '/') + 1) DESC,
+      CAST(invoice_number AS INTEGER) DESC
+    LIMIT 1
+  `).get()
+  if (invoice.invoice_number !== latestInvoice?.invoice_number) {
     const error = new Error('To keep numbering gapless, you can delete only the latest invoice.')
     error.statusCode = 409
     throw error

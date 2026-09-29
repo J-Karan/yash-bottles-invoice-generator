@@ -2,10 +2,14 @@
 
 Last updated: 2026-09-29 IST.
 
-## Release 0.3.13 — Current Implementation
+## Release 0.3.14 — Current Implementation
 
 This section supersedes older implementation and version notes below.
 
+- Invoice deletion is limited to the highest serial in the newest financial year
+  present in the database. The server and history view enforce the same rule.
+- The invoice form and preview size independently on desktop to avoid blank space
+  below the form's save action.
 - Saved invoice forms are locked; explicit editing regenerates the same invoice.
   Saved display snapshots keep previews aligned while master data changes.
 - Unsaved buyer/item changes guard record selection and workspace navigation.
