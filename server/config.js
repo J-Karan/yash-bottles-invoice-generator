@@ -41,7 +41,7 @@ const appUsername = String(process.env.APP_USERNAME || 'jkaran').trim()
 const appPassword = requiredSecret('APP_PASSWORD')
 const adminPassword = requiredSecret('ADMIN_PASSWORD')
 const paymentPassword = requiredSecret('PAYMENT_PASSWORD')
-const invoiceServiceFee = Number(process.env.INVOICE_SERVICE_FEE || 100)
+const invoiceServiceFee = Number(process.env.INVOICE_SERVICE_FEE || 120)
 const maxLineItems = 8
 
 function requiredSecret(name) {

@@ -4,7 +4,7 @@ const defaultPaymentSummary = {
   totalInvoices: 0,
   paidInvoices: 0,
   unpaidInvoices: 0,
-  invoiceRate: 100,
+  invoiceRate: 120,
   amountDue: 0,
   paidAmountTotal: 0,
 }

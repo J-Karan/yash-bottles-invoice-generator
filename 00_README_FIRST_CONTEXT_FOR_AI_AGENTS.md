@@ -1,6 +1,6 @@
 # EWB Invoice System - AI Agent Handoff
 
-Last updated: 2026-09-29 IST.
+Last updated: 2026-11-03 IST.
 
 ## Release 0.3.14 — Current Implementation
 
@@ -246,6 +246,18 @@ Main tables:
 - `eway_buyer_distances`
 - `eway_ambiguous_buyer_distances`
 
+Production Nyx database snapshot from 2026-11-03:
+
+- Buyers: 8
+- Items: 27
+- Invoices: 81
+- Invoice date range: 2025-10-30 to 2026-10-31
+- Unpaid invoices: 0
+- Paid invoices: 81 (all settled at ₹120.00/invoice, total paid so far: ₹9,720.00)
+- Service fee rate: ₹120.00 (`INVOICE_SERVICE_FEE=120`)
+- Sequences: `2025-26` next serial 33, `2026-27` next serial 50
+- Generated artifacts: 81 Excel and 81 PDF files (162 files total, 100% verified)
+
 Production Nyx database snapshot from 2026-07-17:
 
 - Buyers: 8
@@ -429,17 +441,16 @@ systemd:
 Caddy:
 
 - Caddyfile route: `152.67.2.68.nip.io, invoice.yashbottles.in`
+- Compression: `encode zstd gzip` enabled and verified (returns zstd / gzip depending on client `Accept-Encoding`).
 - Reverse proxy target: `127.0.0.1:5000`
-- Service verified active.
+- Service verified active and reload validated.
 
-Host resources from 2026-07-17:
+Host resources from 2026-11-03:
 
-- Root disk: 58G total, 14G used, 45G available, 24 percent used.
-- Memory: 11Gi total, 9.3Gi used, 346Mi free, 2.1Gi available.
+- Root disk: 58G total, 9.8G used, 49G available, 17 percent used.
+- Memory: 11Gi total, 391Mi used, 8.5Gi free, 11Gi available.
 - Swap: none.
-- Nyx is a shared host. A Paper Minecraft server runs under `ubuntu` with a fixed 8G JVM
-  heap (`-Xms8G -Xmx8G`) and holds roughly 77 percent of system RAM. The invoice app is a
-  small consumer by comparison. See the memory risk note in Known Current Risks.
+- The invoice app is running cleanly under systemd (PID 830, ~113 MiB resident).
 
 ## Deployment Flow
 
@@ -562,6 +573,23 @@ Production verification from 2026-07-17:
 - `npm audit --omit=dev`: 0 vulnerabilities.
 - Generated artifacts and DB invoice records matched exactly at 58/58/58.
 - Daily backup and hourly Google Drive sync both verified running.
+
+Local verification from 2026-11-03:
+
+- `npm test`: passed, 49 tests across 17 suites, 0 failures.
+
+Production verification from 2026-11-03:
+
+- `systemctl is-active ewb-invoice`: active.
+- `systemctl is-active caddy`: active.
+- `systemctl --user is-active generated-gdrive-watch.service`: active.
+- `systemctl --user is-active generated-gdrive-sync.timer`: active.
+- Loopback `/api/health`: ok.
+- Public `https://invoice.yashbottles.in/api/health`: HTTP 200.
+- Caddy compression: `encode zstd gzip` enabled in `/etc/caddy/Caddyfile`; verified `content-encoding: zstd` and `content-encoding: gzip` returned properly.
+- Generated artifacts and DB invoice records: 81 DB invoices (32 in 2025-26, 49 in 2026-27), 81 Excel files, 81 PDF files (162 artifacts verified).
+- Daily backup verified running (`20261103-023020`), with 14-day retention pruning.
+- Hourly Google Drive sync verified running cleanly (`Checks: 162/162, 100%`).
 
 ## Known Current Risks And Follow-Ups
 
