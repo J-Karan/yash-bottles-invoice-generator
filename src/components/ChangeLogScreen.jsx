@@ -1,5 +1,14 @@
 const changeLogEntries = [
   {
+    version: '0.3.16',
+    title: 'Excel Generation Formula & Value Cache Fix',
+    changes: [
+      'Fixed Excel invoice generation: preserved active Excel formulas while embedding exact pre-calculated values (cached results) for line amounts, taxable values, subtotals, GST, and grand totals.',
+      'Ensured Excel spreadsheets display computed totals immediately across all viewers (including Protected View, mobile preview, and third-party spreadsheet viewers) without showing blank cells or 0.00.',
+      'Enabled workbook calculation flags (fullCalcOnLoad, forceFullCalc) to guarantee automatic recalculation when opened in Microsoft Excel.',
+    ],
+  },
+  {
     version: '0.3.15',
     title: 'Reliability, Concurrency & Data Integrity Fixes',
     changes: [

@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-18 IST.
 
-## Release 0.3.15 — Current Implementation
+## Release 0.3.16 — Current Implementation
 
 This section supersedes older implementation and version notes below.
 
@@ -20,7 +20,10 @@ This section supersedes older implementation and version notes below.
   `INSERT OR REPLACE` to eliminate delete-and-reinsert side effects.
 - Legacy space-separated timestamps (`YYYY-MM-DD HH:MM:SS`) are automatically normalized to
   ISO strings on startup, ensuring exact chronological sorting.
-- Excel generation clears all columns A through J for template rows 13 through 20.
+- Excel generation preserves active formulas in columns F, H, I, J and summary rows 21 and 23–28
+  while writing pre-calculated results into the workbook cache, ensuring all lines, taxes, and
+  totals display immediately across all viewers (including Protected View, mobile, and web)
+  without blank cells or 0.00.
 - Login and payment rate limiters reset their attempt counters on successful authentication.
 - Main invoice draft form includes dirty tracking hooked into `beforeunload`.
 - In-flight preview requests track individual invoice keys rather than a global boolean.

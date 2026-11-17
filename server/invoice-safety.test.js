@@ -166,3 +166,28 @@ it('generates PDF with special characters and overlong words without throwing', 
   assert.ok(saved.invoice.invoiceKey)
   await core.deleteInvoiceHistory(saved.invoice.invoiceKey)
 })
+
+it('generates Excel invoice with both active formulas and cached result values', async () => {
+  const saved = await core.generateAndSaveInvoice(input)
+  try {
+    const targets = core.buildInvoiceFileTargets(saved.invoice.invoiceDate, saved.invoice.invoiceKey)
+    const ExcelJS = (await import('exceljs')).default
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.readFile(targets.excel.absolutePath)
+    const sheet = wb.getWorksheet(1)
+    
+    const f13 = sheet.getCell('F13')
+    assert.ok(f13.formula, 'F13 should have formula')
+    assert.ok(typeof f13.result === 'number' && f13.result > 0, 'F13 should have non-empty numeric cached result')
+
+    const d21 = sheet.getCell('D21')
+    assert.ok(d21.formula, 'D21 should have SUM formula')
+    assert.ok(typeof d21.result === 'number' && d21.result > 0, 'D21 should have quantity cached result')
+
+    const j28 = sheet.getCell('J28')
+    assert.ok(j28.formula, 'J28 should have total formula')
+    assert.ok(typeof j28.result === 'number' && j28.result > 0, 'J28 should have grand total cached result')
+  } finally {
+    await core.deleteInvoiceHistory(saved.invoice.invoiceKey)
+  }
+})
