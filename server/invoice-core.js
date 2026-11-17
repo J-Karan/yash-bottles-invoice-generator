@@ -1237,5 +1237,6 @@ export {
   saveInvoiceHistory,
   generateExcelInvoice,
   generatePdfInvoice,
+  regenerateInvoiceArtifacts,
   buildInvoiceFileTargets,
 }
