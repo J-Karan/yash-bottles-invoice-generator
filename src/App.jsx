@@ -457,7 +457,6 @@ function App() {
   }
 
   async function refreshHistory({ offset = 0, search = historySearch } = {}) {
-    window.clearTimeout(historyTimer.current)
     const request = ++historyRequest.current
     setHistoryLoading(true)
     setHistoryError('')

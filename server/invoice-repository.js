@@ -246,7 +246,7 @@ const historySearchExpression = `lower(i.invoice_number || ' ' || i.invoice_date
 
 function normalizeHistorySearch(term) {
   const clean = String(term || '').trim()
-  return /^\d{1,3}(,\d{3})*(\.\d+)?$/.test(clean) ? clean.replace(/,/g, '') : clean
+  return /^[\d,]+(\.\d+)?$/.test(clean) && clean.includes(',') ? clean.replace(/,/g, '') : clean
 }
 
 function readInvoiceHistoryCount(search = '') {

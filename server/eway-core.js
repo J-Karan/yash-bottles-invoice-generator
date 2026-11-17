@@ -65,6 +65,7 @@ function openDb() {
   if (sharedDb) return sharedDb
   const db = new DatabaseSync(dbPath)
   db.exec('PRAGMA busy_timeout = 5000')
+  db.exec('PRAGMA foreign_keys = ON;')
   return db
 }
 
