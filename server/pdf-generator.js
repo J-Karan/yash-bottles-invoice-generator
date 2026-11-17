@@ -293,8 +293,19 @@ async function generatePdfInvoice(invoice, outputPath) {
   await fs.writeFile(outputPath, bytes)
 }
 
+function toWinAnsi(text) {
+  if (text == null) return ''
+  return String(text)
+    .replace(/\u20B9/g, 'Rs.')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
+}
+
 function drawText(page, text, x, y, font, size, color) {
-  page.drawText(String(text || ''), { x, y, font, size, color })
+  page.drawText(toWinAnsi(text), { x, y, font, size, color })
 }
 
 function drawBox(page, x, y, width, height) {
@@ -309,12 +320,13 @@ function drawBox(page, x, y, width, height) {
 }
 
 function drawCenteredText(page, text, centerX, y, font, size, color) {
-  const width = font.widthOfTextAtSize(text, size)
-  drawText(page, text, centerX - width / 2, y, font, size, color)
+  const clean = toWinAnsi(text)
+  const width = font.widthOfTextAtSize(clean, size)
+  drawText(page, clean, centerX - width / 2, y, font, size, color)
 }
 
 function wrapText(text, maxWidth, font, size) {
-  const source = String(text || '').trim()
+  const source = toWinAnsi(text).trim()
   if (!source) {
     return ['']
   }
@@ -327,6 +339,24 @@ function wrapText(text, maxWidth, font, size) {
     let current = ''
 
     words.forEach((word) => {
+      if (font.widthOfTextAtSize(word, size) > maxWidth) {
+        if (current) {
+          lines.push(current)
+          current = ''
+        }
+        let chunk = ''
+        for (const char of word) {
+          if (font.widthOfTextAtSize(chunk + char, size) <= maxWidth) {
+            chunk += char
+          } else {
+            if (chunk) lines.push(chunk)
+            chunk = char
+          }
+        }
+        if (chunk) current = chunk
+        return
+      }
+
       const next = current ? `${current} ${word}` : word
       const width = font.widthOfTextAtSize(next, size)
       if (width <= maxWidth) {

@@ -39,6 +39,7 @@ import {
   fileExists,
 } from './invoice-artifacts.js'
 import { generatePdfInvoice } from './pdf-generator.js'
+import { initEwayRepository } from './eway-core.js'
 import { withInvoiceMutation } from './invoice-mutations.js'
 import { preparePublication, publishFiles, finishPublication, recoverPublications } from './invoice-publication.js'
 import {
@@ -51,7 +52,7 @@ import {
   readInvoiceDraft,
   deleteInvoiceHistory as deleteInvoiceHistoryFromRepository,
   readPaymentSummary,
-  markUnpaidInvoicesPaid,
+  markUnpaidInvoicesPaid as markUnpaidInvoicesPaidInRepository,
   createBuyer,
   updateBuyer,
   deleteBuyer,
@@ -80,9 +81,11 @@ async function initializeDatabase() {
 
   db = new DatabaseSync(dbPath)
   initRepository(db)
+  initEwayRepository(db)
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA busy_timeout = 5000;
+    PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS buyers (
       buyer_code TEXT PRIMARY KEY,
@@ -190,6 +193,10 @@ async function initializeDatabase() {
       buyer_code TEXT PRIMARY KEY,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    DELETE FROM invoice_lines WHERE invoice_number NOT IN (SELECT invoice_number FROM invoices);
+    DELETE FROM buyer_ship_to_options WHERE buyer_code NOT IN (SELECT buyer_code FROM buyers);
+    UPDATE invoices SET created_at = replace(created_at, ' ', 'T') || '.000Z' WHERE instr(created_at, 'T') = 0;
   `)
 
   recoverPublications(db)
@@ -495,10 +502,6 @@ async function normalizeInvoiceNumberingByFinancialYear() {
     })
 
     rebuildInvoiceSequences()
-    db.prepare(`
-      INSERT INTO app_settings (setting_key, setting_value, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-    `).run(migrationKey, String(changes.length))
   })
 
   db.exec('PRAGMA foreign_keys = OFF')
@@ -512,6 +515,11 @@ async function normalizeInvoiceNumberingByFinancialYear() {
     await regenerateInvoiceArtifacts(change.newInvoiceNumber, change.newInvoiceKey)
     await deleteInvoiceArtifacts(change.oldInvoiceDate, change.oldInvoiceKey)
   }
+
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).run(migrationKey, String(renamePlan.length))
 }
 
 async function normalizeGeneratedFileLayout() {
@@ -951,6 +959,12 @@ function assertEditedInvoiceDateMatchesInvoiceNumber(invoiceNumber, invoiceDate)
   }
 }
 
+function normalizeTimestampToIso(val) {
+  if (!val) return new Date().toISOString()
+  if (val.includes('T')) return val
+  return val.replace(' ', 'T') + '.000Z'
+}
+
 async function saveInvoiceHistory(invoice, beforeCommit) {
   await dbReady
 
@@ -963,7 +977,7 @@ async function saveInvoiceHistory(invoice, beforeCommit) {
     reserveInvoiceNumberForNewPayload(payload, existingInvoice)
 
     db.prepare(`
-      INSERT OR REPLACE INTO invoices (
+      INSERT INTO invoices (
         invoice_number,
         invoice_key,
         invoice_date,
@@ -987,6 +1001,28 @@ async function saveInvoiceHistory(invoice, beforeCommit) {
         payment_batch_note,
         created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(invoice_number) DO UPDATE SET
+        invoice_key = excluded.invoice_key,
+        invoice_date = excluded.invoice_date,
+        vehicle_number = excluded.vehicle_number,
+        quantity = excluded.quantity,
+        amount = excluded.amount,
+        non_taxable_value = excluded.non_taxable_value,
+        taxable_value = excluded.taxable_value,
+        cgst = excluded.cgst,
+        sgst = excluded.sgst,
+        taxable_after_gst = excluded.taxable_after_gst,
+        total = excluded.total,
+        buyer_code = excluded.buyer_code,
+        buyer_name_snapshot = excluded.buyer_name_snapshot,
+        buyer_gstin_snapshot = excluded.buyer_gstin_snapshot,
+        ship_to_name_snapshot = excluded.ship_to_name_snapshot,
+        ship_to_address_snapshot = excluded.ship_to_address_snapshot,
+        is_paid = excluded.is_paid,
+        paid_at = excluded.paid_at,
+        paid_amount = excluded.paid_amount,
+        payment_batch_note = excluded.payment_batch_note,
+        created_at = excluded.created_at
     `).run(
       payload.invoiceNumber,
       payload.invoiceKey,
@@ -1009,7 +1045,7 @@ async function saveInvoiceHistory(invoice, beforeCommit) {
       existingInvoice?.paid_at || '',
       existingInvoice?.paid_amount ?? 0,
       existingInvoice?.payment_batch_note || '',
-      existingInvoice?.created_at || new Date().toISOString(),
+      normalizeTimestampToIso(existingInvoice?.created_at),
     )
 
     db.prepare('DELETE FROM invoice_lines WHERE invoice_number = ?').run(payload.invoiceNumber)
@@ -1076,14 +1112,22 @@ async function deleteInvoiceHistory(invoiceKey) {
   })
 }
 
+async function markUnpaidInvoicesPaid(password) {
+  return withInvoiceMutation(async () => {
+    await dbReady
+    return markUnpaidInvoicesPaidInRepository(password)
+  })
+}
+
 async function generateAndSaveInvoiceLocked(input) {
   await dbReady
   recoverPublications(db)
   const invoicePayload = await buildInvoicePayload(input)
   const fileTargets = buildInvoiceFileTargets(invoicePayload.invoiceDate, invoicePayload.invoiceKey)
   const temporaryTargets = buildTemporaryInvoiceFileTargets(fileTargets)
-  const previous = input.editInvoiceKey
-    ? db.prepare('SELECT invoice_date FROM invoices WHERE invoice_key = ?').get(input.editInvoiceKey) : null
+  const editInvoiceKey = invoicePayload.editInvoiceKey
+  const previous = editInvoiceKey
+    ? db.prepare('SELECT invoice_date FROM invoices WHERE invoice_key = ?').get(editInvoiceKey) : null
   const oldTargets = previous ? buildInvoiceFileTargets(previous.invoice_date, invoicePayload.invoiceKey) : null
   let publication
 

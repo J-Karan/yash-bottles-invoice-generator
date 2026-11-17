@@ -145,8 +145,8 @@ export function InvoicePreviewModal({ invoice, buyers, items, onClose }) {
                     <td className="preview-sheet-number">{line.quantity}</td>
                     <td className="preview-sheet-number">{formatMoney(line.grossRate)}</td>
                     <td className="preview-sheet-number">{formatMoney(line.taxableValue)}</td>
-                    <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
-                    <td className="preview-sheet-number">{formatMoney(line.taxableValue * 0.09)}</td>
+                    <td className="preview-sheet-number">{formatMoney(Math.round(line.taxableValue * 9) / 100)}</td>
+                    <td className="preview-sheet-number">{formatMoney(Math.round(line.taxableValue * 9) / 100)}</td>
                     <td className="preview-sheet-number preview-sheet-line-total">
                       {formatMoney(line.amount)}
                     </td>

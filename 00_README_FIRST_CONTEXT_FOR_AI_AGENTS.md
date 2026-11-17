@@ -1,8 +1,34 @@
 # EWB Invoice System - AI Agent Handoff
 
-Last updated: 2026-11-03 IST.
+Last updated: 2026-11-18 IST.
 
-## Release 0.3.14 — Current Implementation
+## Release 0.3.15 — Current Implementation
+
+This section supersedes older implementation and version notes below.
+
+- Startup SQLite database initialization enforces foreign keys (`PRAGMA foreign_keys = ON`).
+- Invoice deletion and buyer deletion explicitly remove child lines and ship-to options
+  to guarantee zero orphan records.
+- Payment marking runs inside the serialized mutation queue (`withInvoiceMutation`) and
+  updates only the specific invoices captured in the unpaid query snapshot.
+- PDF generation maps Rupee symbols (`₹` to `Rs.`), curly quotes, and sanitizes text to
+  WinAnsi charset before measurement and drawing, preventing PDF creation 500 errors.
+- Text wrapping in PDF rendering slices overlong single words to avoid table cell overflows.
+- CSP `upgrade-insecure-requests` is served conditionally when requests are HTTPS or behind
+  an HTTPS proxy, keeping local LAN plain HTTP mode completely functional.
+- Invoices use `INSERT INTO ... ON CONFLICT(invoice_number) DO UPDATE SET ...` instead of
+  `INSERT OR REPLACE` to eliminate delete-and-reinsert side effects.
+- Legacy space-separated timestamps (`YYYY-MM-DD HH:MM:SS`) are automatically normalized to
+  ISO strings on startup, ensuring exact chronological sorting.
+- Excel generation clears all columns A through J for template rows 13 through 20.
+- Login and payment rate limiters reset their attempt counters on successful authentication.
+- Main invoice draft form includes dirty tracking hooked into `beforeunload`.
+- In-flight preview requests track individual invoice keys rather than a global boolean.
+- Modal focus trap uses a reference counter to maintain body scroll lock across multiple modals.
+- History file availability checks run non-blocking asynchronous `fs.access` queries.
+- E-way readiness and export reuse the shared SQLite database connection.
+
+## Release 0.3.14 — Earlier Implementation
 
 This section supersedes older implementation and version notes below.
 

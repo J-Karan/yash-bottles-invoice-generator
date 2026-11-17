@@ -47,7 +47,7 @@ export function InvoiceHistory({
             className="secondary-button"
             type="button"
             onClick={() => {
-              onRefreshHistory()
+              onRefreshHistory({ offset: pagination?.offset || 0, search: historySearch })
               onRefreshEwayReadiness()
             }}
             disabled={historyLoading || ewayLoading}
@@ -151,9 +151,9 @@ export function InvoiceHistory({
                           aria-label={`Preview invoice ${invoice.invoiceNumber}`}
                           title={`Preview invoice ${invoice.invoiceNumber}`}
                           onClick={() => onOpenPreview(invoice)}
-                          disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
+                          disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading === invoice.invoiceKey}
                         >
-                          {previewLoading && historyActionBusyKey === invoice.invoiceKey ? 'Loading...' : 'Preview'}
+                          {(previewLoading === invoice.invoiceKey || (previewLoading === true && historyActionBusyKey === invoice.invoiceKey)) ? 'Loading...' : 'Preview'}
                         </button>
                         <button
                           className="text-button history-action-edit"
@@ -254,9 +254,9 @@ export function InvoiceHistory({
                     aria-label={`Preview invoice ${invoice.invoiceNumber}`}
                     title={`Preview invoice ${invoice.invoiceNumber}`}
                     onClick={() => onOpenPreview(invoice)}
-                    disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading}
+                    disabled={historyActionBusyKey === invoice.invoiceKey || previewLoading === invoice.invoiceKey}
                   >
-                    {previewLoading && historyActionBusyKey === invoice.invoiceKey ? 'Loading...' : 'Preview'}
+                    {(previewLoading === invoice.invoiceKey || (previewLoading === true && historyActionBusyKey === invoice.invoiceKey)) ? 'Loading...' : 'Preview'}
                   </button>
                   <button
                     className="text-button history-action-edit"

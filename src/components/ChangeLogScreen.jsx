@@ -1,5 +1,20 @@
 const changeLogEntries = [
   {
+    version: '0.3.15',
+    title: 'Reliability, Concurrency & Data Integrity Fixes',
+    changes: [
+      'Enabled SQLite foreign key enforcement at startup and added explicit cascade cleanup for deleted invoices and buyer profiles.',
+      'Synchronized unpaid payment marking with the sequential mutation queue and restricted updates strictly to the captured unpaid snapshot.',
+      'Hardened PDF text rendering to safely sanitize currency symbols (₹ -> Rs.) and non-WinAnsi characters, preventing save crashes.',
+      'Conditionalized CSP upgrade-insecure-requests to HTTPS contexts so local office LAN access remains functional.',
+      'Normalized legacy invoice timestamps to standard ISO format and replaced INSERT OR REPLACE with ON CONFLICT updates to preserve sequence integrity.',
+      'Cleared all template columns A–J in empty invoice lines, preventing residue from persisting in Excel artifacts.',
+      'Enhanced rate limiting to reset attempt counters upon successful authentication, preventing legitimate lockouts.',
+      'Added beforeunload unsaved draft protections to the main invoice workspace and preserved history pagination across actions.',
+      'Optimized history file availability checks with asynchronous non-blocking I/O and reused shared database connections for E-way readiness.',
+    ],
+  },
+  {
     version: '0.3.14',
     title: 'Latest Invoice Delete Rule & Form Spacing',
     changes: [

@@ -9,6 +9,9 @@ const focusableSelector = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+let activeModalCount = 0
+let originalOverflow = ''
+
 function useModalTrap(containerRef, onClose) {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -19,8 +22,11 @@ function useModalTrap(containerRef, onClose) {
     }
 
     const previousFocus = document.activeElement
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    if (activeModalCount === 0) {
+      originalOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
+    activeModalCount += 1
     const focusableElements = getFocusableElements(container)
     const firstElement = focusableElements[0] || container
     firstElement.focus()
@@ -59,7 +65,10 @@ function useModalTrap(containerRef, onClose) {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
+      activeModalCount = Math.max(0, activeModalCount - 1)
+      if (activeModalCount === 0) {
+        document.body.style.overflow = originalOverflow
+      }
       if (
         previousFocus &&
         typeof previousFocus.focus === 'function' &&

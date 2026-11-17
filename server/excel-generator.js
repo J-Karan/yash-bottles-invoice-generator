@@ -25,14 +25,12 @@ async function generateExcelInvoice(invoice, outputPath) {
 
   const firstRow = 13
   const lastTemplateRow = 20
+  const templateColumns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
   for (let row = firstRow; row <= lastTemplateRow; row += 1) {
-    sheet.getCell(`A${row}`).value = null
-    sheet.getCell(`B${row}`).value = null
-    sheet.getCell(`C${row}`).value = null
-    sheet.getCell(`D${row}`).value = null
-    sheet.getCell(`E${row}`).value = null
-    sheet.getCell(`G${row}`).value = null
+    for (const col of templateColumns) {
+      sheet.getCell(`${col}${row}`).value = null
+    }
   }
 
   invoice.lines.forEach((line, index) => {

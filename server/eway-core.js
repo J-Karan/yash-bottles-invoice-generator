@@ -55,7 +55,14 @@ const stateCodeByGstinPrefix = {
   97: { stateName: 'OTHER TERRITORY', stateCode: 97 },
 }
 
+let sharedDb = null
+
+function initEwayRepository(database) {
+  sharedDb = database
+}
+
 function openDb() {
+  if (sharedDb) return sharedDb
   const db = new DatabaseSync(dbPath)
   db.exec('PRAGMA busy_timeout = 5000')
   return db
@@ -103,7 +110,9 @@ function readEwayReadiness() {
       invoices,
     }
   } finally {
-    db.close()
+    if (db !== sharedDb) {
+      db.close()
+    }
   }
 }
 
@@ -272,7 +281,9 @@ function buildEwayBulkJson(invoiceKey, options = {}) {
       ],
     }
   } finally {
-    db.close()
+    if (db !== sharedDb) {
+      db.close()
+    }
   }
 }
 
@@ -422,6 +433,12 @@ function extractPincode(value) {
   return match ? Number(`${match[1]}${match[2]}`) : 0
 }
 
+const genericAddressWords = new Set([
+  'HIGHWAY', 'ROAD', 'RD', 'LAKE', 'GAT', 'PLOT', 'PHASE', 'SECTOR',
+  'NEAR', 'NR', 'OPP', 'OPPOSITE', 'BEHIND', 'BESIDE', 'BLDG', 'BUILDING',
+  'FLOOR', 'LANE', 'STREET', 'ST', 'AVENUE', 'AVE', 'NO', 'NUMBER', 'AREA'
+])
+
 function extractPlace(value, pincode) {
   const source = sanitize(value)
     .replace(/(\d{3})\s?(\d{3})(?!\d)/g, '')
@@ -433,6 +450,15 @@ function extractPlace(value, pincode) {
   if (!source) return ''
 
   const parts = source.split(/\s+/).filter((part) => /[a-z]/i.test(part))
+  if (!parts.length) return ''
+
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const word = parts[i]
+    if (!genericAddressWords.has(word.toUpperCase())) {
+      return word
+    }
+  }
+
   return parts.at(-1) || ''
 }
 
@@ -464,6 +490,7 @@ function sanitize(value) {
 
 export {
   buildEwayBulkJson,
+  initEwayRepository,
   readEwayReadiness,
   stateFromGstin,
 }

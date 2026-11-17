@@ -60,7 +60,24 @@ export function recoverPublications(db) {
   fs.mkdirSync(journalDir, { recursive: true })
   for (const entry of fs.readdirSync(journalDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const manifest = path.join(journalDir, entry.name, 'manifest.json')
-    if (fs.existsSync(manifest)) finishPublication(JSON.parse(fs.readFileSync(manifest, 'utf8')), db)
+    const dir = path.join(journalDir, entry.name)
+    const manifest = path.join(dir, 'manifest.json')
+    const pendingManifest = path.join(dir, 'manifest.pending')
+
+    if (fs.existsSync(manifest)) {
+      finishPublication(JSON.parse(fs.readFileSync(manifest, 'utf8')), db)
+    } else if (fs.existsSync(pendingManifest)) {
+      try {
+        finishPublication(JSON.parse(fs.readFileSync(pendingManifest, 'utf8')), db)
+      } catch {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    } else {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true })
+      } catch {
+        // ignore cleanup error
+      }
+    }
   }
 }

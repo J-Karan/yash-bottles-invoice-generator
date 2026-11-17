@@ -6,7 +6,7 @@ function createRateLimiter(options = {}) {
   const attempts = new Map()
   let lastCleanupAt = 0
 
-  return function rateLimit(req, res, next) {
+  const limiter = function rateLimit(req, res, next) {
     const now = Date.now()
     if (now - lastCleanupAt >= cleanupIntervalMs) {
       pruneExpiredAttempts(attempts, now)
@@ -31,6 +31,13 @@ function createRateLimiter(options = {}) {
 
     next()
   }
+
+  limiter.reset = function reset(req) {
+    const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.path}`
+    attempts.delete(key)
+  }
+
+  return limiter
 }
 
 function pruneExpiredAttempts(attempts, now = Date.now()) {

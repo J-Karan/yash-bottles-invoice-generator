@@ -1,5 +1,6 @@
 import cors from 'cors'
 import express from 'express'
+import fs from 'fs/promises'
 import fsSync from 'fs'
 import path from 'path'
 import { createAdminSession, extractBearerToken, invalidateAdminSession, requireAdmin } from './admin-session.js'
@@ -74,29 +75,32 @@ app.use(cors({
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '32kb', strict: true }))
 app.use(handleJsonBodyError)
 
-function securityHeaders(_req, res, next) {
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+function securityHeaders(req, res, next) {
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https'
+  if (isHttps) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  res.setHeader(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      "script-src 'self'",
-      "style-src 'self'",
-      "img-src 'self' data:",
-      "font-src 'self'",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "manifest-src 'self'",
-      'upgrade-insecure-requests',
-    ].join('; '),
-  )
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "manifest-src 'self'",
+  ]
+  if (isHttps) {
+    cspDirectives.push('upgrade-insecure-requests')
+  }
+  res.setHeader('Content-Security-Policy', cspDirectives.join('; '))
   next()
 }
 
@@ -114,6 +118,7 @@ app.post('/api/auth/login', appLoginLimiter, async (req, res) => {
       return
     }
 
+    appLoginLimiter.reset(req)
     const token = createAppSession()
     res.json({ token, username })
   } catch (error) {
@@ -156,6 +161,7 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
       return
     }
 
+    adminLoginLimiter.reset(req)
     const token = createAdminSession()
     res.json({ token })
   } catch (error) {
@@ -230,12 +236,14 @@ app.get('/api/invoices/history', async (req, res) => {
     const offset = Number.isFinite(requestedOffset) ? Math.max(0, Math.floor(requestedOffset)) : 0
     const search = String(req.query?.search || '').trim().slice(0, 200)
     const invoices = await readInvoiceHistory(limit, { offset, search })
-    const withFiles = invoices.map((invoice) => {
+    const withFiles = await Promise.all(invoices.map(async (invoice) => {
       const fileTargets = buildInvoiceFileTargets(invoice.invoiceDate, invoice.invoiceKey)
       const excelPath = fileTargets.excel.absolutePath
       const pdfPath = fileTargets.pdf.absolutePath
-      const excelAvailable = fsSync.existsSync(excelPath)
-      const pdfAvailable = fsSync.existsSync(pdfPath)
+      const [excelAvailable, pdfAvailable] = await Promise.all([
+        fs.access(excelPath).then(() => true, () => false),
+        fs.access(pdfPath).then(() => true, () => false),
+      ])
 
       return {
         ...invoice,
@@ -246,7 +254,7 @@ app.get('/api/invoices/history', async (req, res) => {
           pdf: pdfAvailable ? `/downloads/pdf/${fileTargets.pdf.relativeUrlPath}` : '',
         },
       }
-    })
+    }))
 
     res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary(),
       pagination: { limit, offset, total: readInvoiceHistoryCount(search) } })
@@ -278,6 +286,7 @@ app.post('/api/invoices/mark-paid', paymentLimiter, async (req, res) => {
   try {
     await dbReady
     const result = await markUnpaidInvoicesPaid(req.body?.password)
+    paymentLimiter.reset(req)
     res.json(result)
   } catch (error) {
     res.status(error.statusCode || 500).json({ error: error.message })

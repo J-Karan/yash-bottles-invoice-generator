@@ -27,7 +27,7 @@ if not exist "node_modules" (
 echo [2/3] Building frontend...
 call npm run build
 if errorlevel 1 (
-  if exist "dist\\index.html" (
+  if exist "dist\index.html" (
     echo Build failed. Using existing dist output.
   ) else (
     goto :fail
@@ -181,16 +181,16 @@ for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /R /C:":%PORT% .*LISTE
 if not "!PORT_PIDS!"==" " (
   if /I "!APP_RUNNING!"=="YES" (
     echo Existing invoice server detected on port %PORT%. Restarting...
+    for %%P in (!PORT_PIDS!) do (
+      taskkill /PID %%P /F >nul 2>&1
+    )
+    timeout /t 1 >nul
   ) else (
-    echo Port %PORT% is in use by PID^(s^): !PORT_PIDS!
-    echo Attempting to free port %PORT%...
+    echo Port %PORT% is in use by unrelated process ^(PID !PORT_PIDS!^).
+    echo Selecting an alternate free port...
+    call :find_free_port
+    if errorlevel 1 goto :fail
   )
-
-  for %%P in (!PORT_PIDS!) do (
-    taskkill /PID %%P /F >nul 2>&1
-  )
-
-  timeout /t 1 >nul
 )
 
 set "PORT_BUSY="

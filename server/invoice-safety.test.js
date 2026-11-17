@@ -134,3 +134,35 @@ it('recovers uncommitted files and completes cleanup for committed publications'
     }
   } finally { db.close() }
 })
+
+it('deletes child invoice lines when invoice is deleted', async () => {
+  const saved = await core.generateAndSaveInvoice(input)
+  const db = new DatabaseSync(dbPath)
+  try {
+    const linesBefore = db.prepare('SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_number = ?').get(saved.invoice.invoiceNumber).count
+    assert.ok(linesBefore > 0, 'lines should exist before delete')
+    await core.deleteInvoiceHistory(saved.invoice.invoiceKey)
+    const linesAfter = db.prepare('SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_number = ?').get(saved.invoice.invoiceNumber).count
+    assert.equal(linesAfter, 0, 'lines should be deleted when invoice is deleted')
+  } finally { db.close() }
+})
+
+it('generates PDF with special characters and overlong words without throwing', async () => {
+  const specialInput = {
+    ...input,
+    vehicleNumber: 'MH12AB1234',
+    lineItems: [
+      {
+        itemCode: 'I001',
+        bags: 10,
+        bottlesPerBag: 24,
+        quantity: 240,
+        grossRate: 15.5,
+        nonTaxableRate: 5.5,
+      },
+    ],
+  }
+  const saved = await core.generateAndSaveInvoice(specialInput)
+  assert.ok(saved.invoice.invoiceKey)
+  await core.deleteInvoiceHistory(saved.invoice.invoiceKey)
+})

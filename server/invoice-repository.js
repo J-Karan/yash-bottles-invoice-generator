@@ -17,6 +17,9 @@ let db
 
 function initRepository(database) {
   db = database
+  if (db?.exec) {
+    db.exec('PRAGMA foreign_keys = ON;')
+  }
 }
 
 function withTransaction(callback) {
@@ -239,11 +242,17 @@ const historySearchExpression = `lower(i.invoice_number || ' ' || i.invoice_date
   strftime('%d/%m/%Y', i.invoice_date) || ' ' || strftime('%d', i.invoice_date) || ' ' ||
   substr('JanFebMarAprMayJunJulAugSepOctNovDec', (CAST(strftime('%m', i.invoice_date) AS INTEGER)-1)*3+1, 3) || ' ' ||
   strftime('%Y', i.invoice_date) || ' ' || i.buyer_name_snapshot || ' ' || i.buyer_code || ' ' ||
-  COALESCE(i.buyer_gstin_snapshot, '') || ' ' || i.vehicle_number || ' ' || CAST(i.total AS TEXT))`
+  COALESCE(i.buyer_gstin_snapshot, '') || ' ' || i.vehicle_number || ' ' || printf('%.2f', i.total) || ' ' || CAST(i.total AS TEXT))`
+
+function normalizeHistorySearch(term) {
+  const clean = String(term || '').trim()
+  return /^\d{1,3}(,\d{3})*(\.\d+)?$/.test(clean) ? clean.replace(/,/g, '') : clean
+}
 
 function readInvoiceHistoryCount(search = '') {
+  const normalized = normalizeHistorySearch(search)
   return Number(db.prepare(`SELECT COUNT(*) AS count FROM invoices i WHERE instr(${historySearchExpression}, lower(?)) > 0`)
-    .get(String(search).trim()).count)
+    .get(normalized).count)
 }
 
 async function readInvoiceHistory(limit = 200, { offset = 0, search = '' } = {}) {
@@ -251,6 +260,7 @@ async function readInvoiceHistory(limit = 200, { offset = 0, search = '' } = {})
   const safeLimit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 1000)
     : 200
+  const normalized = normalizeHistorySearch(search)
 
   const rows = db.prepare(`
     SELECT
@@ -288,7 +298,7 @@ async function readInvoiceHistory(limit = 200, { offset = 0, search = '' } = {})
     WHERE instr(${historySearchExpression}, lower(?)) > 0
     ORDER BY i.created_at DESC, i.invoice_number DESC
     LIMIT ? OFFSET ?
-  `).all(String(search).trim(), safeLimit, Number.isFinite(Number(offset)) ? Math.max(0, Math.floor(Number(offset))) : 0)
+  `).all(normalized, safeLimit, Number.isFinite(Number(offset)) ? Math.max(0, Math.floor(Number(offset))) : 0)
 
   return rows.map((row) => ({
     invoiceNumber: row.invoice_number,
@@ -504,6 +514,7 @@ async function deleteInvoiceHistory(invoiceKey) {
   }
 
   const removeInvoice = withTransaction((payload, invoiceMeta) => {
+    db.prepare('DELETE FROM invoice_lines WHERE invoice_number = ?').run(payload.invoice_number)
     db.prepare('DELETE FROM eway_invoice_distances WHERE invoice_key = ?').run(payload.invoice_key)
     db.prepare('DELETE FROM invoices WHERE invoice_number = ?').run(payload.invoice_number)
     db.prepare(`
@@ -561,6 +572,8 @@ async function markUnpaidInvoicesPaid(password) {
 
   if (unpaid.length) {
     const now = new Date().toISOString()
+    const unpaidNumbers = unpaid.map((row) => row.invoice_number)
+    const placeholders = unpaidNumbers.map(() => '?').join(',')
     const markPaid = withTransaction(() => {
       db.prepare(`
         UPDATE invoices
@@ -569,8 +582,8 @@ async function markUnpaidInvoicesPaid(password) {
           paid_at = ?,
           paid_amount = ?,
           payment_batch_note = ?
-        WHERE is_paid = 0
-      `).run(now, invoiceServiceFee, 'Marked paid from invoice history.')
+        WHERE invoice_number IN (${placeholders})
+      `).run(now, invoiceServiceFee, 'Marked paid from invoice history.', ...unpaidNumbers)
     })
 
     markPaid()
@@ -690,7 +703,11 @@ function deleteBuyer(buyerCode) {
     throw new Error('This buyer is already used in invoice history and cannot be deleted.')
   }
 
-  db.prepare('DELETE FROM buyers WHERE buyer_code = ?').run(buyerCode)
+  const removeBuyer = withTransaction(() => {
+    db.prepare('DELETE FROM buyer_ship_to_options WHERE buyer_code = ?').run(buyerCode)
+    db.prepare('DELETE FROM buyers WHERE buyer_code = ?').run(buyerCode)
+  })
+  removeBuyer()
 }
 
 function createItem(input) {

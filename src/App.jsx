@@ -21,7 +21,6 @@ import {
   defaultPaymentSummary,
   emptyBuyerForm,
   emptyItemForm,
-  formatDisplayDate,
   formatMoney,
   getStoredAppToken,
   maxLineItems,
@@ -55,7 +54,7 @@ function App() {
   const [editingInvoice, setEditingInvoice] = useState(null)
   const [historyActionBusyKey, setHistoryActionBusyKey] = useState('')
   const [previewInvoice, setPreviewInvoice] = useState(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewLoadingKey, setPreviewLoadingKey] = useState('')
 
   const [buyerForm, setBuyerForm] = useState(emptyBuyerForm)
   const [itemForm, setItemForm] = useState(emptyItemForm)
@@ -155,12 +154,18 @@ function App() {
     return () => window.clearTimeout(historyTimer.current)
   }, [historySearch, activeView, appToken])
 
+  const isInvoiceDraftDirty = useMemo(() => {
+    if (editingInvoice) return true
+    if (form.buyerCode || form.vehicleNumber) return true
+    return form.lineItems?.some(line => line.itemCode || line.bags > 0 || line.grossRate > 0)
+  }, [form, editingInvoice])
+
   useEffect(() => {
-    if (!buyerDirty && !itemDirty) return undefined
+    if (!buyerDirty && !itemDirty && !isInvoiceDraftDirty) return undefined
     const warn = event => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [buyerDirty, itemDirty])
+  }, [buyerDirty, itemDirty, isInvoiceDraftDirty])
 
   useEffect(() => {
     if (activeView === 'history') {
@@ -251,14 +256,22 @@ function App() {
     setAppSessionChecking(true)
     try {
       const response = await appFetch('/api/auth/session')
+      if (response.status === 401 || response.status === 403) {
+        clearAppSession()
+        return
+      }
       if (!response.ok) {
-        throw new Error('Session expired.')
+        return
       }
 
-      await Promise.all([refreshMasters(), refreshHistory(), refreshEwayReadiness()])
+      try {
+        await Promise.all([refreshMasters(), refreshHistory(), refreshEwayReadiness()])
+      } catch (loadErr) {
+        console.error('Failed to load initial masters/history:', loadErr)
+      }
       setLoginError('')
     } catch {
-      clearAppSession()
+      // Network disconnect / offline at startup: keep stored token and let user retry
     } finally {
       setAppSessionChecking(false)
     }
@@ -518,7 +531,7 @@ function App() {
       setPaymentSummary(data.summary || defaultPaymentSummary)
       setPaymentStatus(`Marked ${data.markedCount || 0} invoice(s) as paid.`)
       closePaymentModal(true)
-      await refreshHistory()
+      await refreshHistory({ offset: historyPage?.offset || 0 })
     } catch (payError) {
       setPaymentError(payError.message)
     } finally {
@@ -557,7 +570,7 @@ function App() {
         message: `Invoice ${data.invoice.invoiceNumber} ${isEditingInvoice ? 'updated' : 'generated'}`,
         visible: true,
       })
-      await refreshHistory()
+      await refreshHistory({ offset: isEditingInvoice ? (historyPage?.offset || 0) : 0 })
       await refreshEwayReadiness()
     } catch (submitError) {
       setError(submitError.message)
@@ -568,7 +581,7 @@ function App() {
   }
 
   async function openInvoicePreview(invoice) {
-    setPreviewLoading(true)
+    setPreviewLoadingKey(invoice.invoiceKey)
     setHistoryActionBusyKey(invoice.invoiceKey)
     setHistoryError('')
 
@@ -583,7 +596,7 @@ function App() {
     } catch (loadError) {
       setHistoryError(loadError.message)
     } finally {
-      setPreviewLoading(false)
+      setPreviewLoadingKey('')
       setHistoryActionBusyKey('')
     }
   }
@@ -658,7 +671,10 @@ function App() {
         setResult(null)
       }
 
-      await refreshHistory()
+      const safeDeleteOffset = historyPage?.offset > 0 && historyPage?.total % 50 === 1
+        ? Math.max(0, historyPage.offset - 50)
+        : (historyPage?.offset || 0)
+      await refreshHistory({ offset: safeDeleteOffset })
       await refreshEwayReadiness()
       setPendingDelete(null)
       setSuccessToast({
@@ -1492,7 +1508,7 @@ function App() {
           pagination={historyPage}
           onPageChange={offset => refreshHistory({ offset })}
           onOpenPreview={openInvoicePreview}
-          previewLoading={previewLoading}
+          previewLoading={previewLoadingKey}
         />
       ) : null}
       {activeView === 'history' && paymentModalOpen ? (
