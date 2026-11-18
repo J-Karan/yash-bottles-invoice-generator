@@ -52,7 +52,7 @@ export function finishPublication(journal, db) {
   // Delete the manifest before its backups; recovery is repeatable until this point.
   remove(path.join(journal.directory, 'manifest.json'))
   for (const entry of journal.entries) remove(entry.backup)
-  fs.rmdirSync(journal.directory)
+  fs.rmSync(journal.directory, { recursive: true, force: true })
   db.prepare('DELETE FROM app_settings WHERE setting_key = ?').run(key)
 }
 

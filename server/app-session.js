@@ -9,6 +9,14 @@ let lastCleanupAt = 0
 
 function createAppSession() {
   pruneExpiredAppSessions()
+  if (appSessions.size >= 5000) {
+    let count = 0
+    const toEvict = appSessions.size - 4000
+    for (const k of appSessions.keys()) {
+      if (count++ >= toEvict) break
+      appSessions.delete(k)
+    }
+  }
   const token = crypto.randomBytes(32).toString('hex')
   appSessions.set(token, Date.now() + sessionTtlMs)
   return token

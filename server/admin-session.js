@@ -7,6 +7,14 @@ let lastCleanupAt = 0
 
 function createAdminSession() {
   pruneExpiredAdminSessions()
+  if (adminSessions.size >= 5000) {
+    let count = 0
+    const toEvict = adminSessions.size - 4000
+    for (const k of adminSessions.keys()) {
+      if (count++ >= toEvict) break
+      adminSessions.delete(k)
+    }
+  }
   const token = crypto.randomBytes(24).toString('hex')
   adminSessions.set(token, Date.now() + sessionTtlMs)
   return token

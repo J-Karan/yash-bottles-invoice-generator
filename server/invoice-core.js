@@ -1105,10 +1105,11 @@ async function generateAndSaveInvoice(input) {
 }
 
 async function deleteInvoiceHistory(invoiceKey) {
+  const normalizedKey = normalizeInvoiceKey(invoiceKey)
   return withInvoiceMutation(async () => {
     await dbReady
     recoverPublications(db)
-    return deleteInvoiceHistoryFromRepository(invoiceKey)
+    return deleteInvoiceHistoryFromRepository(normalizedKey)
   })
 }
 

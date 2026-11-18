@@ -33,7 +33,11 @@ import {
   updateBuyer,
   updateItem,
 } from './invoice-core.js'
-import { normalizeInvoiceKey, sanitizeHeaderFilenameBase } from './input-validation.js'
+import {
+  normalizeCodeField,
+  normalizeInvoiceKey,
+  sanitizeHeaderFilenameBase,
+} from './input-validation.js'
 import { readInvoiceHistoryCount } from './invoice-repository.js'
 
 const app = express()
@@ -118,11 +122,16 @@ app.post('/api/auth/login', appLoginLimiter, async (req, res) => {
       return
     }
 
+    const previousToken = extractAppSessionToken(req)
+    if (previousToken) {
+      invalidateAppSession(previousToken)
+    }
+
     appLoginLimiter.reset(req)
     const token = createAppSession()
     res.json({ token, username })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -148,7 +157,7 @@ app.get('/api/masters', async (_req, res) => {
       items,
     })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -161,11 +170,16 @@ app.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
       return
     }
 
+    const previousAdminToken = extractBearerToken(req)
+    if (previousAdminToken) {
+      invalidateAdminSession(previousAdminToken)
+    }
+
     adminLoginLimiter.reset(req)
     const token = createAdminSession()
     res.json({ token })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -184,7 +198,7 @@ app.get('/api/buyers', requireAdmin, async (_req, res) => {
     await dbReady
     res.json({ buyers: await readBuyers() })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -194,27 +208,29 @@ app.post('/api/buyers', requireAdmin, async (req, res) => {
     const buyer = createBuyer(req.body)
     res.status(201).json({ buyer })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
 app.put('/api/buyers/:buyerCode', requireAdmin, async (req, res) => {
   try {
     await dbReady
-    const buyer = updateBuyer(req.params.buyerCode, req.body)
+    const buyerCode = normalizeCodeField(req.params.buyerCode, 'Buyer code', { required: true })
+    const buyer = updateBuyer(buyerCode, req.body)
     res.json({ buyer })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
 app.delete('/api/buyers/:buyerCode', requireAdmin, async (req, res) => {
   try {
     await dbReady
-    deleteBuyer(req.params.buyerCode)
+    const buyerCode = normalizeCodeField(req.params.buyerCode, 'Buyer code', { required: true })
+    deleteBuyer(buyerCode)
     res.json({ ok: true })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
@@ -223,7 +239,7 @@ app.get('/api/items', requireAdmin, async (_req, res) => {
     await dbReady
     res.json({ items: await readItems() })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -259,26 +275,28 @@ app.get('/api/invoices/history', async (req, res) => {
     res.json({ invoices: withFiles, paymentSummary: await readPaymentSummary(),
       pagination: { limit, offset, total: readInvoiceHistoryCount(search) } })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
 app.get('/api/invoices/:invoiceKey', async (req, res) => {
   try {
     await dbReady
-    res.json({ invoice: await readInvoiceDraft(req.params.invoiceKey) })
+    const invoiceKey = normalizeInvoiceKey(req.params.invoiceKey)
+    res.json({ invoice: await readInvoiceDraft(invoiceKey) })
   } catch (error) {
-    res.status(error.statusCode || 404).json({ error: error.message })
+    sendErrorResponse(res, error, 404)
   }
 })
 
 app.delete('/api/invoices/:invoiceKey', async (req, res) => {
   try {
     await dbReady
-    const result = await deleteInvoiceHistory(req.params.invoiceKey)
+    const invoiceKey = normalizeInvoiceKey(req.params.invoiceKey)
+    const result = await deleteInvoiceHistory(invoiceKey)
     res.json(result)
   } catch (error) {
-    res.status(error.statusCode || 500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -289,7 +307,7 @@ app.post('/api/invoices/mark-paid', paymentLimiter, async (req, res) => {
     paymentLimiter.reset(req)
     res.json(result)
   } catch (error) {
-    res.status(error.statusCode || 500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -298,7 +316,7 @@ app.get('/api/eway/readiness', async (_req, res) => {
     await dbReady
     res.json(readEwayReadiness())
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -306,8 +324,18 @@ app.get('/api/eway/invoices/:invoiceKey/bulk-json', async (req, res) => {
   try {
     await dbReady
     const invoiceKey = normalizeInvoiceKey(req.params.invoiceKey)
+    let distanceKm = undefined
+    if (req.query?.distanceKm !== undefined && req.query?.distanceKm !== '') {
+      const parsedDist = Number(req.query.distanceKm)
+      if (!Number.isFinite(parsedDist) || parsedDist < 1 || parsedDist > 4000) {
+        res.status(400).json({ error: 'Distance must be between 1 and 4000 km.' })
+        return
+      }
+      distanceKm = Math.round(parsedDist)
+    }
+
     const payload = buildEwayBulkJson(invoiceKey, {
-      distanceKm: req.query?.distanceKm,
+      distanceKm,
     })
     const filename = `${sanitizeHeaderFilenameBase(invoiceKey, 'invoice')}-eway.json`
 
@@ -315,10 +343,7 @@ app.get('/api/eway/invoices/:invoiceKey/bulk-json', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(JSON.stringify(payload, null, 2))
   } catch (error) {
-    res.status(error.statusCode || 500).json({
-      error: error.message,
-      details: error.details,
-    })
+    sendErrorResponse(res, error)
   }
 })
 
@@ -328,27 +353,29 @@ app.post('/api/items', requireAdmin, async (req, res) => {
     const item = createItem(req.body)
     res.status(201).json({ item })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
 app.put('/api/items/:itemCode', requireAdmin, async (req, res) => {
   try {
     await dbReady
-    const item = updateItem(req.params.itemCode, req.body)
+    const itemCode = normalizeCodeField(req.params.itemCode, 'Item code', { required: true })
+    const item = updateItem(itemCode, req.body)
     res.json({ item })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
 app.delete('/api/items/:itemCode', requireAdmin, async (req, res) => {
   try {
     await dbReady
-    deleteItem(req.params.itemCode)
+    const itemCode = normalizeCodeField(req.params.itemCode, 'Item code', { required: true })
+    deleteItem(itemCode)
     res.json({ ok: true })
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
@@ -357,7 +384,7 @@ app.post('/api/invoices/generate', async (req, res) => {
     await dbReady
     res.json(await generateAndSaveInvoice(req.body))
   } catch (error) {
-    res.status(400).json({ error: error.message })
+    sendErrorResponse(res, error, 400)
   }
 })
 
@@ -375,6 +402,20 @@ if (fsSync.existsSync(distDir)) {
 }
 
 app.use(handleUnexpectedError)
+
+function sendErrorResponse(res, error, defaultStatusCode = 500) {
+  if (res.headersSent) {
+    return
+  }
+
+  const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : defaultStatusCode
+  const message = statusCode >= 500 ? 'Unexpected server error.' : error.message
+  const payload = { error: message }
+  if (statusCode < 500 && error.details) {
+    payload.details = error.details
+  }
+  res.status(statusCode).json(payload)
+}
 
 function handleJsonBodyError(error, _req, res, next) {
   if (error?.type === 'entity.parse.failed') {

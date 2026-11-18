@@ -2,7 +2,21 @@
 
 Last updated: 2026-11-18 IST.
 
-## Release 0.3.16 — Current Implementation
+## Release 0.3.17 — Current Implementation
+
+This section supersedes older implementation and version notes below.
+
+- Critical and high-severity dependency vulnerabilities patched (`proxy-addr`, `body-parser`, `qs`, `csv-parse`, `brace-expansion`, `shell-quote`, `source-map-js`). Production `npm audit --omit=dev` has 0 vulnerabilities.
+- `safeEqual` secret comparison rejects empty, falsy, or non-string values immediately, preventing empty credential bypass.
+- Rate limiting normalizes request paths (stripping trailing slashes and lowercasing) so route variations share the same rate-limit bucket.
+- Rate limiting Map and in-memory session stores (`appSessions`, `adminSessions`) are bounded to 5,000 entries to prevent memory exhaustion DoS.
+- Re-authenticating via login invalidates any previously supplied session tokens, preventing session fixation and lingering tokens.
+- Internal error responses across all API endpoints are sanitized with a unified `sendErrorResponse` helper, preventing database paths, query internals, and stack traces from leaking on 500 errors.
+- URL route parameters on admin master endpoints (`/api/buyers/:buyerCode` and `/api/items/:itemCode`) and invoice endpoints (`/api/invoices/:invoiceKey`) are strictly validated against code/key patterns before hitting database queries or mutation queues.
+- E-way bulk JSON generation validates manual `distanceKm` inputs against official limits (1 to 4000 km).
+- Publication journal directory cleanup uses resilient recursive removal (`fs.rmSync`) to prevent `ENOTEMPTY` crashes.
+
+## Release 0.3.16 — Earlier Implementation
 
 This section supersedes older implementation and version notes below.
 

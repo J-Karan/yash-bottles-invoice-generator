@@ -13,6 +13,10 @@ describe('safeEqual', () => {
     assert.equal(safeEqual('same-secret', 'same-secret'), true)
     assert.equal(safeEqual('same-secret', 'other-secret'), false)
     assert.equal(safeEqual('same-secret', 'short'), false)
+    assert.equal(safeEqual('', ''), false)
+    assert.equal(safeEqual(null, null), false)
+    assert.equal(safeEqual('same-secret', ''), false)
+    assert.equal(safeEqual('', 'same-secret'), false)
   })
 })
 
@@ -63,6 +67,52 @@ describe('request hardening', () => {
     })
   })
 
+  it('invalidates previous session token when re-authenticating', async () => {
+    await withTestServer(async (baseUrl) => {
+      const firstToken = await loginForTest(baseUrl)
+      const sessionBefore = await fetch(`${baseUrl}/api/auth/session`, {
+        headers: { 'X-Invoice-Session': firstToken },
+      })
+      assert.equal(sessionBefore.status, 200)
+
+      const secondTokenResponse = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Invoice-Session': firstToken,
+        },
+        body: JSON.stringify({
+          username: process.env.APP_USERNAME || 'jkaran',
+          password: process.env.APP_PASSWORD,
+        }),
+      })
+      const { token: secondToken } = await secondTokenResponse.json()
+      assert.notEqual(firstToken, secondToken)
+
+      const sessionAfter = await fetch(`${baseUrl}/api/auth/session`, {
+        headers: { 'X-Invoice-Session': firstToken },
+      })
+      assert.equal(sessionAfter.status, 401)
+
+      await logoutForTest(baseUrl, secondToken)
+    })
+  })
+
+  it('rejects out-of-range distanceKm for eway bulk-json', async () => {
+    await withTestServer(async (baseUrl) => {
+      const token = await loginForTest(baseUrl)
+      try {
+        const response = await fetch(`${baseUrl}/api/eway/invoices/001-2026-27/bulk-json?distanceKm=5000`, {
+          headers: { 'X-Invoice-Session': token },
+        })
+        assert.equal(response.status, 400)
+        assert.deepEqual(await response.json(), { error: 'Distance must be between 1 and 4000 km.' })
+      } finally {
+        await logoutForTest(baseUrl, token)
+      }
+    })
+  })
+
   it('rate limits login per forwarded client ip, not globally', async () => {
     await withTestServer(async (baseUrl) => {
       const badLogin = (forwardedFor) =>
@@ -86,6 +136,18 @@ describe('request hardening', () => {
       const otherClient = await badLogin('203.0.113.6')
       assert.equal(otherClient.status, 401)
       await otherClient.json()
+
+      // Trailing slash path variation shares the same rate limit bucket
+      const trailingSlashAttempt = await fetch(`${baseUrl}/api/auth/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Forwarded-For': '203.0.113.5',
+        },
+        body: JSON.stringify({ username: 'jkaran', password: 'wrong-password' }),
+      })
+      assert.equal(trailingSlashAttempt.status, 429)
+      await trailingSlashAttempt.json()
     })
   })
 

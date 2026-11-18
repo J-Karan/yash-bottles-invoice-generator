@@ -1,3 +1,10 @@
+function normalizeRateLimitKey(req) {
+  const clientIp = req.ip || req.socket?.remoteAddress || 'unknown'
+  const pathPart = (req.baseUrl || '') + (req.path || '')
+  const normalizedPath = pathPart.toLowerCase().replace(/\/+$/, '') || '/'
+  return `${clientIp}:${normalizedPath}`
+}
+
 function createRateLimiter(options = {}) {
   const windowMs = options.windowMs || 1000 * 60
   const maxAttempts = options.maxAttempts || 5
@@ -13,7 +20,20 @@ function createRateLimiter(options = {}) {
       lastCleanupAt = now
     }
 
-    const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.path}`
+    const maxEntries = 5000
+    if (attempts.size >= maxEntries) {
+      pruneExpiredAttempts(attempts, now)
+      if (attempts.size >= maxEntries) {
+        let count = 0
+        const toEvict = attempts.size - 4000
+        for (const k of attempts.keys()) {
+          if (count++ >= toEvict) break
+          attempts.delete(k)
+        }
+      }
+    }
+
+    const key = normalizeRateLimitKey(req)
     const record = attempts.get(key) || { count: 0, resetAt: now + windowMs }
 
     if (record.resetAt <= now) {
@@ -33,7 +53,7 @@ function createRateLimiter(options = {}) {
   }
 
   limiter.reset = function reset(req) {
-    const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.path}`
+    const key = normalizeRateLimitKey(req)
     attempts.delete(key)
   }
 
